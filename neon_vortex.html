@@ -1,0 +1,3099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>NEON VORTEX — 3D Vector Tube Arcade Shooter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Orbitron:wght@600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    /* =========================================================================
+       CORE & SELF-CONTAINED FALLBACK STYLES (Works even without Tailwind CDN)
+       ========================================================================= */
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #05050a;
+      color: #f8fafc;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .font-display {
+      font-family: 'Orbitron', 'Inter', sans-serif;
+    }
+
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* High-contrast cyberpunk HUD & Modal panels */
+    .vortex-hud-panel {
+      background-color: rgba(7, 7, 18, 0.9);
+      border: 1.5px solid rgba(0, 243, 255, 0.35);
+      box-shadow: 0 0 20px rgba(0, 243, 255, 0.12), inset 0 0 14px rgba(0, 243, 255, 0.05);
+      border-radius: 0.75rem;
+    }
+
+    .vortex-modal-card {
+      background-color: rgba(6, 6, 16, 0.96);
+      border: 2px solid rgba(0, 243, 255, 0.65);
+      box-shadow: 0 0 46px rgba(0, 243, 255, 0.28), inset 0 0 28px rgba(255, 0, 127, 0.09);
+      border-radius: 1rem;
+    }
+
+    .neon-title-glow {
+      text-shadow: 0 0 14px rgba(0, 243, 255, 0.9), 0 0 34px rgba(255, 0, 255, 0.6);
+    }
+
+    .vortex-cta-btn {
+      background: linear-gradient(135deg, #00f3ff 0%, #3b82f6 48%, #ff00ff 100%);
+      color: #05050a;
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 900;
+      letter-spacing: 0.09em;
+      border: none;
+      border-radius: 0.75rem;
+      box-shadow: 0 0 26px rgba(0, 243, 255, 0.48);
+      transition: transform 0.1s ease, filter 0.15s ease;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .vortex-cta-btn:hover {
+      filter: brightness(1.12);
+    }
+
+    .vortex-cta-btn:active {
+      transform: scale(0.96);
+    }
+
+    @keyframes superzapperPulse {
+      0%, 100% {
+        box-shadow: 0 0 14px rgba(255, 230, 0, 0.85), 0 0 28px rgba(255, 0, 255, 0.65);
+        border-color: #ffe600;
+      }
+      50% {
+        box-shadow: 0 0 24px rgba(0, 243, 255, 0.95), 0 0 38px rgba(57, 255, 20, 0.8);
+        border-color: #00f3ff;
+      }
+    }
+
+    .zapper-ready-glow {
+      animation: superzapperPulse 0.8s infinite ease-in-out;
+    }
+
+    /* Responsive Mobile Touch Controls */
+    .touch-pad-btn {
+      background-color: rgba(9, 9, 24, 0.82);
+      border: 1.5px solid rgba(0, 243, 255, 0.5);
+      color: #00f3ff;
+      border-radius: 1rem;
+      touch-action: none;
+      transition: transform 0.06s ease, background-color 0.08s ease, border-color 0.08s ease;
+    }
+
+    .touch-pad-btn.active-press {
+      background-color: rgba(0, 243, 255, 0.28);
+      border-color: #ffffff;
+      color: #ffffff;
+      transform: scale(0.94);
+    }
+
+    @media (min-width: 769px) and (pointer: fine) {
+      #mobileTouchBar {
+        display: none !important;
+      }
+    }
+
+    /* Layer Z-Index Hierarchy */
+    #gameCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      display: block;
+    }
+
+    #hudOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    #mobileTouchBar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    #menuModal,
+    #pauseModal,
+    #gameOverModal {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      pointer-events: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Z-0: Fullscreen 60 FPS 3D-Perspective Vector Vortex Canvas -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Z-10: Non-Blocking Top HUD -->
+  <div id="hudOverlay" class="p-2.5 sm:p-4 flex flex-col gap-2">
+    <div class="flex items-start justify-between gap-2">
+      
+      <!-- Left: Score, High Score & Sector / Tunnel Geometry -->
+      <div class="vortex-hud-panel px-3 py-2 sm:px-4 sm:py-2.5 tabular-nums">
+        <div class="flex items-center gap-3 sm:gap-4">
+          <div>
+            <div class="text-[9px] sm:text-[10px] font-bold tracking-widest text-cyan-400 uppercase">SCORE</div>
+            <div id="scoreText" class="font-display text-base sm:text-2xl font-black text-white leading-tight">0</div>
+          </div>
+          <div class="h-7 w-px bg-cyan-500/25"></div>
+          <div class="hidden sm:block">
+            <div class="text-[10px] font-bold tracking-widest text-fuchsia-400 uppercase">HIGH SCORE</div>
+            <div id="highScoreText" class="font-display text-lg font-extrabold text-fuchsia-200 leading-tight">0</div>
+          </div>
+        </div>
+        <div class="mt-1 pt-1 border-t border-cyan-500/20 flex items-center gap-2 text-[10px] sm:text-xs font-display font-bold">
+          <span class="text-amber-300">SECTOR <span id="sectorNumText">1</span></span>
+          <span class="text-slate-500">&bull;</span>
+          <span id="sectorShapeText" class="text-cyan-300 truncate max-w-[130px] sm:max-w-[180px]">CYBER OCTAGON</span>
+        </div>
+      </div>
+
+      <!-- Center: Sector Core Overlord Boss Health Bar & Active Power-Up Timers -->
+      <div class="flex-1 max-w-md flex flex-col items-center gap-1.5">
+        <!-- Boss Health Bar (Shown during Boss Encounter) -->
+        <div id="bossHudPanel" class="hidden w-full vortex-hud-panel border-rose-500/85 px-3 py-2">
+          <div class="flex items-center justify-between text-[10px] sm:text-xs font-display font-black mb-1 tabular-nums">
+            <span id="bossTitleText" class="text-rose-400 tracking-wider">⚠ SECTOR CORE OVERLORD</span>
+            <span id="bossHpText" class="text-white">1200 / 1200</span>
+          </div>
+          <div class="w-full h-2.5 sm:h-3 rounded-full bg-slate-950 border border-rose-500/60 overflow-hidden">
+            <div id="bossHpFill" class="h-full bg-gradient-to-r from-rose-600 via-fuchsia-500 to-amber-400" style="width: 100%"></div>
+          </div>
+        </div>
+
+        <!-- Active Power-Up Countdown Bars -->
+        <div id="activePowerupsHud" class="flex flex-wrap justify-center gap-1.5"></div>
+      </div>
+
+      <!-- Right: Shields, Combo 12X Bar, Superzapper Charge, Auto-Fire, SFX & Pause -->
+      <div class="flex flex-col items-end gap-1.5">
+        <div class="vortex-hud-panel px-2.5 py-2 sm:px-3.5 sm:py-2.5 flex items-center gap-2.5 sm:gap-3.5 tabular-nums">
+          <!-- Shields (3 default, expandable to 4) -->
+          <div>
+            <div class="text-[9px] sm:text-[10px] font-bold tracking-widest text-emerald-400 uppercase mb-1">SHIELDS</div>
+            <div id="shieldsIconsRow" class="flex items-center gap-1"></div>
+          </div>
+
+          <div class="h-7 w-px bg-cyan-500/25"></div>
+
+          <!-- Combo Multiplier (Up to 12X) -->
+          <div>
+            <div class="text-[9px] sm:text-[10px] font-bold tracking-widest text-fuchsia-400 uppercase">COMBO</div>
+            <div class="flex items-center gap-1.5">
+              <span id="comboText" class="font-display text-base sm:text-xl font-black text-white leading-none">1X</span>
+              <div id="comboDecayWrap" class="hidden w-10 sm:w-14 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                <div id="comboDecayFill" class="h-full bg-gradient-to-r from-fuchsia-500 to-cyan-400" style="width: 100%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Superzapper Charge Bar + Quick Toggles (Auto-Fire, SFX, Pause) -->
+        <div class="flex flex-wrap items-center justify-end gap-1.5 pointer-events-auto">
+          <!-- Superzapper Charge Pill -->
+          <button
+            id="zapperHudBtn"
+            type="button"
+            onclick="window.activateSuperzapper()"
+            title="Activate Superzapper (E / Shift / Z)"
+            class="vortex-hud-panel px-2.5 py-1.5 flex items-center gap-2 cursor-pointer transition-transform active:scale-95"
+          >
+            <div class="text-left min-w-[92px] sm:min-w-[122px]">
+              <div class="flex items-center justify-between text-[9px] sm:text-[10px] font-display font-black tracking-wider mb-0.5">
+                <span id="zapperLabelText" class="text-amber-300">ZAPPER 0%</span>
+                <span class="hidden md:inline text-[9px] text-slate-400 font-mono">[E]</span>
+              </div>
+              <div class="w-full h-1.5 rounded-full bg-slate-900 border border-amber-400/40 overflow-hidden">
+                <div id="zapperBarFill" class="h-full bg-gradient-to-r from-amber-400 via-fuchsia-500 to-cyan-300 transition-all duration-75" style="width: 0%"></div>
+              </div>
+            </div>
+          </button>
+
+          <!-- Auto-Fire Toggle Pill -->
+          <button
+            id="autoFireBtn"
+            type="button"
+            onclick="window.toggleAutoFire()"
+            title="Toggle Auto-Fire"
+            class="vortex-hud-panel px-2.5 py-1.5 font-display text-[10px] sm:text-xs font-extrabold tracking-wider text-cyan-300 hover:text-white cursor-pointer active:scale-95"
+          >
+            AUTO-FIRE: ON
+          </button>
+
+          <!-- SFX Mute Toggle Pill -->
+          <button
+            id="sfxBtn"
+            type="button"
+            onclick="window.toggleMute()"
+            title="Toggle Sound Effects (M)"
+            class="vortex-hud-panel px-2.5 py-1.5 font-display text-[10px] sm:text-xs font-extrabold tracking-wider text-emerald-300 hover:text-white cursor-pointer active:scale-95"
+          >
+            SFX: ON
+          </button>
+
+          <!-- Pause Button -->
+          <button
+            id="pauseBtn"
+            type="button"
+            onclick="window.togglePause()"
+            title="Pause / Resume (P / Esc)"
+            aria-label="Pause Game"
+            class="vortex-hud-panel px-2.5 py-1.5 font-display text-[10px] sm:text-xs font-extrabold tracking-wider text-fuchsia-300 hover:text-white cursor-pointer active:scale-95"
+          >
+            ❚❚
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sector / Warp Announcement Toast -->
+  <div id="sectorToast" class="hidden fixed inset-x-0 top-28 z-10 flex justify-center pointer-events-none px-4">
+    <div class="vortex-hud-panel border-2 border-cyan-400/80 px-6 py-2.5 text-center">
+      <div id="sectorToastSub" class="text-[10px] font-bold tracking-widest text-cyan-300 uppercase">VORTEX WARP</div>
+      <div id="sectorToastTitle" class="font-display text-lg sm:text-2xl font-black tracking-widest text-white">SECTOR 1: CYBER OCTAGON</div>
+    </div>
+  </div>
+
+  <!-- Z-20: Responsive Mobile Touch Controls -->
+  <div id="mobileTouchBar" class="p-3 sm:p-4 flex items-end justify-between gap-2">
+    <button
+      id="touchLeftBtn"
+      type="button"
+      aria-label="Step Left"
+      class="pointer-events-auto touch-pad-btn w-20 h-16 flex items-center justify-center font-display text-2xl font-black"
+    >
+      ◀
+    </button>
+
+    <button
+      id="touchZapperBtn"
+      type="button"
+      onclick="window.activateSuperzapper()"
+      aria-label="Activate Superzapper"
+      class="pointer-events-auto vortex-hud-panel border-2 border-amber-400/75 px-4 h-16 flex flex-col items-center justify-center font-display text-[11px] font-black text-amber-300 tracking-wider active:scale-95"
+    >
+      <span class="text-base leading-none mb-0.5">⚡</span>
+      <span id="touchZapperLabel">ZAPPER 0%</span>
+    </button>
+
+    <button
+      id="touchRightBtn"
+      type="button"
+      aria-label="Step Right"
+      class="pointer-events-auto touch-pad-btn w-20 h-16 flex items-center justify-center font-display text-2xl font-black"
+    >
+      ▶
+    </button>
+  </div>
+
+  <!-- Z-30: Title Screen Modal Overlay -->
+  <div id="menuModal" class="flex items-center justify-center p-4">
+    <div class="vortex-modal-card p-5 sm:p-7 max-w-2xl w-full max-h-[92vh] overflow-y-auto">
+      <div class="text-center mb-4">
+        <div class="inline-block px-3 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-400/40 text-cyan-300 text-[10px] sm:text-xs font-bold tracking-widest uppercase mb-1.5">
+          3D-Perspective Vector Tube Shooter
+        </div>
+        <h1 class="font-display text-3xl sm:text-5xl font-black tracking-wider text-white neon-title-glow italic">
+          NEON VORTEX
+        </h1>
+        <p class="text-xs sm:text-sm text-slate-300 mt-1.5 max-w-lg mx-auto">
+          Pilot your claw-fighter around shifting 3D geometric vortexes, chain up to a <strong class="text-fuchsia-300">12X Combo</strong>, unleash the <strong class="text-amber-300">SUPERZAPPER</strong>, and obliterate <strong class="text-rose-400">Sector Core Overlords</strong>!
+        </p>
+      </div>
+
+      <!-- Controls Summary -->
+      <div class="rounded-xl bg-white/[0.04] border border-white/10 p-3 mb-4 text-xs text-slate-300 text-center space-y-1">
+        <div>
+          <strong class="text-cyan-300">Desktop:</strong>
+          <kbd class="px-1.5 py-0.5 bg-white/10 rounded text-white">◀/▶</kbd> or <kbd class="px-1.5 py-0.5 bg-white/10 rounded text-white">A/D</kbd> Glide Rim &bull;
+          <kbd class="px-1.5 py-0.5 bg-white/10 rounded text-white">SPACE</kbd> Fire &bull;
+          <kbd class="px-1.5 py-0.5 bg-white/10 rounded text-white">E / SHIFT / Z</kbd> Superzapper
+        </div>
+        <div>
+          <strong class="text-fuchsia-300">Touch / Mobile:</strong>
+          Swipe horizontally anywhere on the vortex or tap the bottom lane pads
+        </div>
+      </div>
+
+      <!-- Compact Power-Up & Enemy Guide -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5 text-[11px]">
+        <!-- 6 Power-Ups -->
+        <div class="rounded-xl bg-white/[0.03] border border-cyan-500/25 p-3">
+          <div class="font-display font-bold text-cyan-300 uppercase tracking-wider mb-2 text-center">
+            6 Vortex Power-Up Capsules
+          </div>
+          <div class="space-y-1.5 text-slate-300">
+            <div><strong style="color:#00f3ff;">◆ TWIN WINGMAN (8s):</strong> Holographic clone 2 lanes over</div>
+            <div><strong style="color:#ff00ff;">◆ OMEGA RAIL-BEAM (7s):</strong> Full-depth piercing laser</div>
+            <div><strong style="color:#ffe600;">◆ TESLA ARC (8s):</strong> Chain lightning across 3 lanes</div>
+            <div><strong style="color:#ff6b00;">◆ RAPID OVERCLOCK (8s):</strong> 2.5x fire rate + triple spread</div>
+            <div><strong style="color:#00ff66;">◆ AEGIS BARRIER (6s):</strong> +1 Shield (max 4) &amp; front ram</div>
+            <div><strong style="color:#9d00ff;">◆ CHRONO STASIS (7s):</strong> Slows enemies &amp; bolts by 60%</div>
+          </div>
+        </div>
+
+        <!-- 5 Enemy Archetypes -->
+        <div class="rounded-xl bg-white/[0.03] border border-fuchsia-500/25 p-3">
+          <div class="font-display font-bold text-fuchsia-300 uppercase tracking-wider mb-2 text-center">
+            Hostile Vector Entities
+          </div>
+          <div class="space-y-1.5 text-slate-300">
+            <div><strong style="color:#ff1e56;">▲ Vector Flipper:</strong> Flips across rim lanes hunting you</div>
+            <div><strong style="color:#39ff14;">✳ Spike Pulsar:</strong> Leaves laser spike rails—shoot to clear</div>
+            <div><strong style="color:#ffbe0b;">◈ Prism Splitter:</strong> Splits into 2 fast mini-crawlers</div>
+            <div><strong style="color:#9d00ff;">◉ Sniper Orb:</strong> Telegraphs a laser sight before firing</div>
+            <div><strong style="color:#ff0055;">⬢ SECTOR CORE BOSS:</strong> Multi-ring Overlord every Sector</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-col items-center gap-2">
+        <button
+          id="startBtn"
+          type="button"
+          onclick="window.startGame()"
+          class="vortex-cta-btn w-full sm:w-auto px-12 py-3.5 text-base sm:text-lg uppercase"
+        >
+          ▶ ENTER THE VORTEX
+        </button>
+        <div class="text-xs font-mono text-slate-400">
+          HIGH SCORE: <span id="menuHighScore" class="text-cyan-300 font-bold">0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Z-30: Pause Modal Overlay -->
+  <div id="pauseModal" class="hidden flex items-center justify-center p-4">
+    <div class="vortex-modal-card border-fuchsia-400/80 p-7 max-w-sm w-full text-center">
+      <div class="text-xs font-bold tracking-widest text-fuchsia-300 uppercase mb-1">VORTEX SUSPENDED</div>
+      <h2 class="font-display text-3xl font-black text-white tracking-wider mb-5">PAUSED</h2>
+      <div class="flex flex-col gap-2.5">
+        <button
+          id="resumeBtn"
+          type="button"
+          onclick="window.togglePause()"
+          class="vortex-cta-btn w-full py-3 text-sm uppercase"
+        >
+          ▶ RESUME COMBAT
+        </button>
+        <button
+          type="button"
+          onclick="window.startGame()"
+          class="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-xs font-bold uppercase tracking-wider text-slate-200 cursor-pointer"
+        >
+          ↺ RESTART SECTOR 1
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Z-30: Game Over Modal Overlay -->
+  <div id="gameOverModal" class="hidden flex items-center justify-center p-4">
+    <div class="vortex-modal-card border-rose-500/85 p-6 sm:p-7 max-w-md w-full text-center">
+      <div class="text-xs font-bold tracking-widest text-rose-400 uppercase mb-1">SHIELDS DEPLETED</div>
+      <h2 class="font-display text-3xl sm:text-4xl font-black text-white tracking-wider mb-2">
+        GAME OVER
+      </h2>
+
+      <div id="newRecordBadge" class="hidden inline-block px-3 py-0.5 rounded-full bg-amber-400/20 border border-amber-400 text-amber-300 text-xs font-extrabold tracking-wider uppercase mb-3">
+        ★ NEW HIGH SCORE ★
+      </div>
+
+      <div class="grid grid-cols-2 gap-2.5 my-4 p-3.5 rounded-xl bg-white/[0.04] border border-white/10 tabular-nums text-left">
+        <div>
+          <div class="text-[10px] font-bold text-slate-400 uppercase">FINAL SCORE</div>
+          <div id="finalScoreText" class="font-display text-lg font-black text-cyan-300">0</div>
+        </div>
+        <div>
+          <div class="text-[10px] font-bold text-slate-400 uppercase">BEST SCORE</div>
+          <div id="finalBestText" class="font-display text-lg font-black text-amber-300">0</div>
+        </div>
+        <div>
+          <div class="text-[10px] font-bold text-slate-400 uppercase">MAX COMBO</div>
+          <div id="finalComboText" class="font-display text-sm font-bold text-fuchsia-300">1X</div>
+        </div>
+        <div>
+          <div class="text-[10px] font-bold text-slate-400 uppercase">SECTOR REACHED</div>
+          <div id="finalSectorText" class="font-display text-sm font-bold text-emerald-300">1</div>
+        </div>
+      </div>
+
+      <button
+        id="playAgainBtn"
+        type="button"
+        onclick="window.startGame()"
+        class="vortex-cta-btn w-full py-3.5 text-base uppercase"
+      >
+        ↻ PLAY AGAIN
+      </button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // =========================================================================
+      // 1. SAFE STORAGE & PROCEDURAL WEB AUDIO API SYNTHESIZER
+      // =========================================================================
+      const STORAGE_KEY = 'neonVortexHighScore';
+      let audioCtx = null;
+      let isMuted = false;
+      let noiseBuffer = null;
+      const soundCooldowns = {};
+
+      function safeGetHighScore() {
+        try {
+          const v = parseInt(window.localStorage.getItem(STORAGE_KEY) || '0', 10);
+          return Number.isFinite(v) && v > 0 ? v : 0;
+        } catch (err) {
+          return 0;
+        }
+      }
+
+      function safeSetHighScore(v) {
+        try {
+          window.localStorage.setItem(STORAGE_KEY, String(Math.max(0, Math.floor(v))));
+        } catch (err) {}
+      }
+
+      function canPlay(key, gapMs) {
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        if (soundCooldowns[key] && now - soundCooldowns[key] < gapMs) return false;
+        soundCooldowns[key] = now;
+        return true;
+      }
+
+      function initAudio() {
+        try {
+          if (!audioCtx) {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (Ctx) audioCtx = new Ctx();
+          }
+          if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume().catch(function () {});
+          }
+          if (audioCtx && !noiseBuffer) {
+            const len = Math.floor(audioCtx.sampleRate * 0.6);
+            noiseBuffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+            const data = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < len; i++) {
+              data[i] = Math.random() * 2 - 1;
+            }
+          }
+        } catch (err) {
+          audioCtx = null;
+        }
+      }
+
+      function synthTone(fStart, fEnd, dur, wave, vol, delay) {
+        if (isMuted) return;
+        try {
+          initAudio();
+          if (!audioCtx) return;
+          const t0 = audioCtx.currentTime + (delay || 0);
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = wave || 'sawtooth';
+          osc.frequency.setValueAtTime(fStart, t0);
+          if (fEnd && fEnd !== fStart) {
+            osc.frequency.exponentialRampToValueAtTime(Math.max(20, fEnd), t0 + dur);
+          }
+          gain.gain.setValueAtTime(0.0001, t0);
+          gain.gain.linearRampToValueAtTime(vol || 0.11, t0 + 0.006);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(t0);
+          osc.stop(t0 + dur + 0.02);
+        } catch (err) {}
+      }
+
+      function synthNoiseExplosion(dur, filterFreq, vol) {
+        if (isMuted) return;
+        try {
+          initAudio();
+          if (!audioCtx || !noiseBuffer) return;
+          const t0 = audioCtx.currentTime;
+          const src = audioCtx.createBufferSource();
+          src.buffer = noiseBuffer;
+
+          const filter = audioCtx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(filterFreq || 650, t0);
+          filter.frequency.exponentialRampToValueAtTime(75, t0 + dur);
+
+          const gain = audioCtx.createGain();
+          gain.gain.setValueAtTime(vol || 0.18, t0);
+          gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+
+          src.connect(filter);
+          filter.connect(gain);
+          gain.connect(audioCtx.destination);
+          src.start(t0);
+          src.stop(t0 + dur + 0.02);
+        } catch (err) {}
+      }
+
+      const sfx = {
+        laser: function (mode) {
+          if (!canPlay('laser', 50)) return;
+          if (mode === 'railbeam') {
+            synthTone(1380, 180, 0.16, 'sawtooth', 0.12, 0);
+            synthTone(690, 110, 0.14, 'square', 0.08, 0.01);
+          } else if (mode === 'tesla') {
+            synthTone(1150, 340, 0.09, 'square', 0.09, 0);
+          } else if (mode === 'overclock') {
+            synthTone(920, 260, 0.07, 'sawtooth', 0.085, 0);
+          } else {
+            synthTone(780, 210, 0.075, 'sawtooth', 0.085, 0);
+          }
+        },
+        step: function () {
+          if (!canPlay('step', 32)) return;
+          synthTone(520, 760, 0.032, 'triangle', 0.055, 0);
+        },
+        explosion: function (heavy) {
+          if (!canPlay('explosion', heavy ? 70 : 45)) return;
+          synthNoiseExplosion(heavy ? 0.42 : 0.2, heavy ? 850 : 520, heavy ? 0.22 : 0.13);
+          synthTone(heavy ? 125 : 175, 28, heavy ? 0.38 : 0.18, 'sawtooth', heavy ? 0.18 : 0.11, 0);
+        },
+        powerup: function () {
+          const notes = [523.25, 659.25, 783.99, 1046.5];
+          for (let i = 0; i < notes.length; i++) {
+            synthTone(notes[i], notes[i] * 1.04, 0.1, 'triangle', 0.13, i * 0.055);
+          }
+        },
+        superzapper: function () {
+          synthTone(180, 32, 0.55, 'sawtooth', 0.24, 0);
+          synthTone(360, 1440, 0.42, 'triangle', 0.16, 0.04);
+          synthNoiseExplosion(0.45, 1100, 0.2);
+        },
+        bossAlarm: function () {
+          synthTone(330, 520, 0.2, 'sawtooth', 0.15, 0);
+          synthTone(520, 330, 0.2, 'sawtooth', 0.15, 0.22);
+          synthTone(330, 580, 0.24, 'sawtooth', 0.16, 0.44);
+        },
+        shieldHit: function () {
+          synthTone(240, 62, 0.28, 'sawtooth', 0.2, 0);
+          synthNoiseExplosion(0.28, 700, 0.18);
+        },
+        bassBeat: function (accent) {
+          if (isMuted) return;
+          synthTone(accent ? 68 : 55, 36, 0.12, 'triangle', 0.045, 0);
+        }
+      };
+
+      // =========================================================================
+      // 2. POWER-UPS, TUNNEL SHAPES (SECTORS 1..6+) & 3D PERSPECTIVE MATH
+      // =========================================================================
+      const POWERUP_DEFS = {
+        wingman: {
+          id: 'wingman',
+          name: 'TWIN WINGMAN',
+          short: 'WINGMAN',
+          color: '#00f3ff',
+          duration: 8.0,
+          weight: 18
+        },
+        railbeam: {
+          id: 'railbeam',
+          name: 'OMEGA RAIL-BEAM',
+          short: 'RAIL-BEAM',
+          color: '#ff00ff',
+          duration: 7.0,
+          weight: 16
+        },
+        tesla: {
+          id: 'tesla',
+          name: 'TESLA ARC',
+          short: 'TESLA ARC',
+          color: '#ffe600',
+          duration: 8.0,
+          weight: 18
+        },
+        overclock: {
+          id: 'overclock',
+          name: 'RAPID OVERCLOCK',
+          short: 'OVERCLOCK',
+          color: '#ff6b00',
+          duration: 8.0,
+          weight: 18
+        },
+        aegis: {
+          id: 'aegis',
+          name: 'AEGIS BARRIER',
+          short: 'AEGIS +1',
+          color: '#00ff66',
+          duration: 6.0,
+          weight: 15
+        },
+        chrono: {
+          id: 'chrono',
+          name: 'CHRONO STASIS',
+          short: 'CHRONO',
+          color: '#9d00ff',
+          duration: 7.0,
+          weight: 15
+        }
+      };
+
+      // Build Sector Tunnel Geometries (Sector 1..6+)
+      function getTunnelDefinition(sectorNum) {
+        const idx = ((sectorNum - 1) % 6) + 1;
+        const cycle = Math.floor((sectorNum - 1) / 6);
+
+        if (idx === 1) {
+          // Sector 1: Cyber Octagon (8 lanes, closed loop)
+          const lanes = 8;
+          const verts = [];
+          for (let i = 0; i < lanes; i++) {
+            const a = -Math.PI * 0.5 + Math.PI / lanes + (i / lanes) * Math.PI * 2;
+            verts.push({ x: Math.cos(a), y: Math.sin(a) });
+          }
+          return {
+            name: 'CYBER OCTAGON',
+            lanes: lanes,
+            closed: true,
+            verts: verts,
+            primary: '#00f3ff',
+            secondary: '#ff00ff',
+            rotateSpeed: cycle * 0.14
+          };
+        }
+
+        if (idx === 2) {
+          // Sector 2: Starburst Vortex (10 lanes, closed loop)
+          const lanes = 10;
+          const verts = [];
+          for (let i = 0; i < lanes; i++) {
+            const a = -Math.PI * 0.5 + (i / lanes) * Math.PI * 2;
+            const r = i % 2 === 0 ? 1.03 : 0.75;
+            verts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+          }
+          return {
+            name: 'STARBURST VORTEX',
+            lanes: lanes,
+            closed: true,
+            verts: verts,
+            primary: '#ff00ff',
+            secondary: '#00f3ff',
+            rotateSpeed: cycle * -0.15
+          };
+        }
+
+        if (idx === 3) {
+          // Sector 3: Vector Cross (12 lanes, closed loop)
+          const lanes = 12;
+          const radii = [0.98, 0.98, 0.64, 0.98, 0.98, 0.64, 0.98, 0.98, 0.64, 0.98, 0.98, 0.64];
+          const verts = [];
+          for (let i = 0; i < lanes; i++) {
+            const a = -Math.PI * 0.5 - Math.PI / 12 + (i / lanes) * Math.PI * 2;
+            const r = radii[i];
+            verts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+          }
+          return {
+            name: 'VECTOR CROSS',
+            lanes: lanes,
+            closed: true,
+            verts: verts,
+            primary: '#39ff14',
+            secondary: '#00f3ff',
+            rotateSpeed: cycle * 0.16
+          };
+        }
+
+        if (idx === 4) {
+          // Sector 4: Twin-Wing Arch (9 lanes, open U-arch with clamped ends)
+          const lanes = 9;
+          const verts = [];
+          const startA = -Math.PI * 0.88;
+          const endA = Math.PI * 0.12;
+          // Sweep through bottom (+PI/2) from left wing to right wing
+          const sweep = Math.PI * 1.24; // from 0.88*PI down through 0.5*PI to 0.12*PI
+          for (let i = 0; i <= lanes; i++) {
+            const t = i / lanes;
+            const a = Math.PI * 1.12 - t * sweep;
+            const edgeFlare = Math.abs(t - 0.5) * 2;
+            const r = 0.88 + edgeFlare * 0.16;
+            verts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+          }
+          return {
+            name: 'TWIN-WING ARCH',
+            lanes: lanes,
+            closed: false,
+            verts: verts,
+            primary: '#ffe600',
+            secondary: '#ff007f',
+            rotateSpeed: 0 // Open U-arch stays upright for clear orientation
+          };
+        }
+
+        if (idx === 5) {
+          // Sector 5: Hyper Hexagon (12 lanes, closed loop)
+          const lanes = 12;
+          const verts = [];
+          for (let i = 0; i < lanes; i++) {
+            const a = -Math.PI * 0.5 + (i / lanes) * Math.PI * 2;
+            const r = i % 2 === 0 ? 1.02 : 0.89;
+            verts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+          }
+          return {
+            name: 'HYPER HEXAGON',
+            lanes: lanes,
+            closed: true,
+            verts: verts,
+            primary: '#ff6b00',
+            secondary: '#9d00ff',
+            rotateSpeed: cycle * 0.18
+          };
+        }
+
+        // Sector 6+: Diamond Grid & Rotating Variations (12 lanes, closed loop)
+        const lanes = 12;
+        const verts = [];
+        for (let i = 0; i < lanes; i++) {
+          const a = -Math.PI * 0.5 + (i / lanes) * Math.PI * 2;
+          const mod = i % 3;
+          const r = mod === 0 ? 1.05 : 0.8;
+          verts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+        }
+        return {
+          name: 'DIAMOND VORTEX',
+          lanes: lanes,
+          closed: true,
+          verts: verts,
+          primary: '#00f3ff',
+          secondary: '#ffe600',
+          rotateSpeed: 0.22 * (sectorNum % 2 === 0 ? 1 : -1)
+        };
+      }
+
+      // =========================================================================
+      // 3. CANVAS, STATE & ENTITY COLLECTIONS
+      // =========================================================================
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d', { alpha: false });
+
+      let viewW = window.innerWidth;
+      let viewH = window.innerHeight;
+      let centerX = viewW * 0.5;
+      let centerY = viewH * 0.52;
+      let outerRadius = 260;
+
+      let gameState = 'MENU'; // 'MENU' | 'PLAYING' | 'PAUSED' | 'GAMEOVER'
+      let lastStartCallMs = 0;
+      let lastFrameTime = 0;
+
+      // Telemetry & Progression
+      let score = 0;
+      let highScore = safeGetHighScore();
+      let sector = 1;
+      let tunnel = getTunnelDefinition(1);
+      let tunnelAngle = 0;
+      let beatPulse = 0;
+      let beatTimer = 0;
+      let beatCount = 0;
+
+      let shields = 3;
+      let maxShields = 4;
+      let combo = 1;
+      let maxCombo = 1;
+      let comboTimer = 0;
+      const COMBO_WINDOW_SEC = 3.2;
+
+      let superzapperCharge = 0; // 0..100
+      let rainbowOverdriveTimer = 0; // 4.0s after Superzapper activation
+      let autoFire = true;
+
+      let sectorKills = 0;
+      let sectorKillQuota = 22;
+      let bossSpawnedInSector = false;
+
+      // Active Timed Power-Ups: { wingman, railbeam, tesla, overclock, aegis, chrono }
+      let activeTimers = {};
+
+      // Player Claw-Fighter State
+      const player = {
+        lane: 0,
+        visualLane: 0,
+        fireCooldown: 0,
+        invulnTimer: 0
+      };
+
+      // Entities
+      let bolts = [];
+      let enemies = [];
+      let nextEnemyId = 1;
+      let enemyBolts = [];
+      let spikeRails = []; // Array of { lane, topZ }
+      let capsules = [];
+      let boss = null;
+
+      // Visual FX Pools
+      let railBeams = [];
+      let lightningArcs = [];
+      let shockwaves = [];
+      let zapperWaves = [];
+      let popups = [];
+      let warpTransitionTimer = 0;
+
+      // Pre-allocated Starfield & Pooled Particles
+      let stars = [];
+      const MAX_PARTICLES = 240;
+      const particles = [];
+      for (let i = 0; i < MAX_PARTICLES; i++) {
+        particles.push({
+          active: false,
+          x: 0,
+          y: 0,
+          vx: 0,
+          vy: 0,
+          size: 2.5,
+          color: '#00f3ff',
+          life: 0,
+          maxLife: 0.45
+        });
+      }
+
+      let enemySpawnTimer = 0;
+      let capsuleSpawnTimer = 6.5;
+      let shakeTime = 0;
+      let shakeMag = 0;
+      let flashColor = '#ffffff';
+      let flashAlpha = 0;
+      let sectorToastTimer = 0;
+
+      // Input State
+      const keys = {};
+      let holdDir = 0; // -1 | 0 | 1
+      let holdTimer = 0;
+      const touchBtns = { left: false, right: false };
+      const swipeState = { active: false, pointerId: null, startX: 0 };
+
+      // =========================================================================
+      // 4. 3D PERSPECTIVE PROJECTION HELPERS
+      // =========================================================================
+      function buildStarfield() {
+        const count = 85;
+        stars = [];
+        const colors = ['#ffffff', '#00f3ff', '#ff00ff', '#ffe600'];
+        for (let i = 0; i < count; i++) {
+          stars.push({
+            angle: Math.random() * Math.PI * 2,
+            z: Math.random(),
+            speed: 0.25 + Math.random() * 0.55,
+            size: 1 + Math.random() * 1.6,
+            color: colors[i % colors.length]
+          });
+        }
+      }
+
+      function resizeCanvas() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        viewW = window.innerWidth;
+        viewH = window.innerHeight;
+        canvas.width = Math.floor(viewW * dpr);
+        canvas.height = Math.floor(viewH * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        centerX = viewW * 0.5;
+        const isMobile = viewW < 769;
+        centerY = viewH * (isMobile ? 0.47 : 0.52);
+        const topMargin = isMobile ? 105 : 100;
+        const bottomMargin = isMobile ? 110 : 54;
+        const availH = Math.max(200, viewH - topMargin - bottomMargin);
+        const availW = Math.max(220, viewW - 36);
+        outerRadius = Math.min(availW * 0.48, availH * 0.49, 360);
+      }
+      window.addEventListener('resize', resizeCanvas);
+
+      // Perspective scale from depth z (0 = vanishing core, 1 = outer rim)
+      function getDepthScale(z) {
+        const clamped = Math.max(0, Math.min(1.12, z));
+        const base = 0.085 + 0.915 * Math.pow(clamped, 1.48);
+        return base * (1 + beatPulse * 0.018);
+      }
+
+      function getVertexPoint(vertIdx, z) {
+        const v = tunnel.verts[vertIdx];
+        const s = outerRadius * getDepthScale(z);
+        const cosR = Math.cos(tunnelAngle);
+        const sinR = Math.sin(tunnelAngle);
+        const rx = v.x * cosR - v.y * sinR;
+        const ry = v.x * sinR + v.y * cosR;
+        return {
+          x: centerX + rx * s,
+          y: centerY + ry * s
+        };
+      }
+
+      // Returns exact screen coordinates & lane width at discrete or fractional lanePos & depth z
+      function getLanePoint(lanePos, z) {
+        const N = tunnel.lanes;
+        let idx = Math.floor(lanePos);
+        let frac = lanePos - idx;
+
+        if (tunnel.closed) {
+          idx = ((idx % N) + N) % N;
+          const nextIdx = (idx + 1) % N;
+          const p0 = getVertexPoint(idx, z);
+          const p1 = getVertexPoint(nextIdx, z);
+          const leftPt = {
+            x: p0.x + (p1.x - p0.x) * frac,
+            y: p0.y + (p1.y - p0.y) * frac
+          };
+          const nextIdx2 = (nextIdx + 1) % N;
+          const p2 = getVertexPoint(nextIdx2, z);
+          const rightPt = {
+            x: p1.x + (p2.x - p1.x) * frac,
+            y: p1.y + (p2.y - p1.y) * frac
+          };
+          const midX = (leftPt.x + rightPt.x) * 0.5;
+          const midY = (leftPt.y + rightPt.y) * 0.5;
+          return {
+            x: midX,
+            y: midY,
+            left: leftPt,
+            right: rightPt,
+            width: Math.hypot(rightPt.x - leftPt.x, rightPt.y - leftPt.y),
+            outAngle: Math.atan2(midY - centerY, midX - centerX)
+          };
+        } else {
+          const clampedIdx = Math.max(0, Math.min(N - 1, idx));
+          const p0 = getVertexPoint(clampedIdx, z);
+          const p1 = getVertexPoint(clampedIdx + 1, z);
+          if (clampedIdx < N - 1) {
+            const p2 = getVertexPoint(clampedIdx + 2, z);
+            const leftPt = {
+              x: p0.x + (p1.x - p0.x) * frac,
+              y: p0.y + (p1.y - p0.y) * frac
+            };
+            const rightPt = {
+              x: p1.x + (p2.x - p1.x) * frac,
+              y: p1.y + (p2.y - p1.y) * frac
+            };
+            const midX = (leftPt.x + rightPt.x) * 0.5;
+            const midY = (leftPt.y + rightPt.y) * 0.5;
+            return {
+              x: midX,
+              y: midY,
+              left: leftPt,
+              right: rightPt,
+              width: Math.hypot(rightPt.x - leftPt.x, rightPt.y - leftPt.y),
+              outAngle: Math.atan2(midY - centerY, midX - centerX)
+            };
+          } else {
+            const midX = (p0.x + p1.x) * 0.5;
+            const midY = (p0.y + p1.y) * 0.5;
+            return {
+              x: midX,
+              y: midY,
+              left: p0,
+              right: p1,
+              width: Math.hypot(p1.x - p0.x, p1.y - p0.y),
+              outAngle: Math.atan2(midY - centerY, midX - centerX)
+            };
+          }
+        }
+      }
+
+      function normalizeLane(laneIdx) {
+        const N = tunnel.lanes;
+        if (tunnel.closed) {
+          return ((laneIdx % N) + N) % N;
+        }
+        return Math.max(0, Math.min(N - 1, laneIdx));
+      }
+
+      function getWingmanLane(baseLane) {
+        const N = tunnel.lanes;
+        if (tunnel.closed) {
+          return (baseLane + 2) % N;
+        }
+        return baseLane + 2 < N ? baseLane + 2 : Math.max(0, baseLane - 2);
+      }
+
+      // =========================================================================
+      // 5. FX POOLS, COMBO, SUPERZAPPER & HUD SYNCHRONIZATION
+      // =========================================================================
+      function spawnParticles(x, y, color, count, speedMult) {
+        let spawned = 0;
+        const mult = speedMult || 1;
+        for (let i = 0; i < MAX_PARTICLES && spawned < count; i++) {
+          const p = particles[i];
+          if (!p.active) {
+            const a = Math.random() * Math.PI * 2;
+            const spd = (55 + Math.random() * 210) * mult;
+            p.active = true;
+            p.x = x;
+            p.y = y;
+            p.vx = Math.cos(a) * spd;
+            p.vy = Math.sin(a) * spd;
+            p.size = 2 + Math.random() * 2.6;
+            p.color = Math.random() > 0.2 ? color : '#ffffff';
+            p.maxLife = 0.26 + Math.random() * 0.34;
+            p.life = p.maxLife;
+            spawned++;
+          }
+        }
+      }
+
+      function spawnPopup(x, y, text, color) {
+        if (popups.length >= 24) popups.shift();
+        popups.push({
+          x: Math.max(60, Math.min(viewW - 60, x)),
+          y: Math.max(75, Math.min(viewH - 60, y)),
+          vy: -42,
+          text: String(text),
+          color: color || '#ffffff',
+          life: 0.9
+        });
+      }
+
+      function triggerShake(dur, mag) {
+        shakeTime = Math.max(shakeTime, dur);
+        shakeMag = Math.max(shakeMag, mag);
+      }
+
+      function triggerFlash(color, alpha) {
+        flashColor = color;
+        flashAlpha = Math.max(flashAlpha, alpha);
+      }
+
+      function showSectorToast(sub, title) {
+        const el = document.getElementById('sectorToast');
+        document.getElementById('sectorToastSub').textContent = sub;
+        document.getElementById('sectorToastTitle').textContent = title;
+        el.classList.remove('hidden');
+        sectorToastTimer = 2.3;
+      }
+
+      function addScore(basePoints, px, py, color) {
+        const odMult = rainbowOverdriveTimer > 0 ? 2 : 1;
+        const earned = Math.round(basePoints * combo * odMult);
+        score += earned;
+        if (score > highScore) {
+          highScore = score;
+          safeSetHighScore(highScore);
+        }
+        if (px !== undefined && py !== undefined) {
+          spawnPopup(px, py, '+' + earned, color || '#00f3ff');
+        }
+        updateHUD();
+        return earned;
+      }
+
+      function registerComboKill(chargeGain) {
+        combo = Math.min(12, combo + 1);
+        if (combo > maxCombo) maxCombo = combo;
+        comboTimer = COMBO_WINDOW_SEC;
+        if (rainbowOverdriveTimer <= 0) {
+          superzapperCharge = Math.min(100, superzapperCharge + (chargeGain || 7));
+        }
+      }
+
+      function renderShieldsHUD() {
+        const row = document.getElementById('shieldsIconsRow');
+        let html = '';
+        for (let i = 0; i < maxShields; i++) {
+          const active = i < shields;
+          html +=
+            '<svg class="w-4 h-4 sm:w-5 sm:h-5 ' +
+            (active ? 'text-emerald-400' : 'text-slate-700') +
+            '" viewBox="0 0 24 24" fill="' +
+            (active ? 'rgba(0,255,102,0.26)' : 'none') +
+            '" stroke="currentColor" stroke-width="2.2">' +
+            '<path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3z"/>' +
+            '</svg>';
+        }
+        row.innerHTML = html;
+      }
+
+      function renderPowerupsHUD() {
+        const container = document.getElementById('activePowerupsHud');
+        const keysList = Object.keys(activeTimers);
+        if (keysList.length === 0) {
+          container.innerHTML = '';
+          return;
+        }
+        container.innerHTML = keysList
+          .map(function (k) {
+            const def = POWERUP_DEFS[k];
+            const t = activeTimers[k];
+            const pct = Math.max(0, Math.min(100, (t.remaining / t.duration) * 100));
+            return (
+              '<div class="vortex-hud-panel px-2.5 py-1 min-w-[86px] sm:min-w-[108px]" style="border-color:' +
+              def.color +
+              '88;">' +
+              '<div class="flex items-center justify-between gap-1 text-[9px] sm:text-[10px] font-display font-bold mb-0.5" style="color:' +
+              def.color +
+              ';">' +
+              '<span>' +
+              def.short +
+              '</span>' +
+              '<span class="font-mono text-white">' +
+              t.remaining.toFixed(1) +
+              's</span>' +
+              '</div>' +
+              '<div class="w-full h-1 bg-slate-800 rounded-full overflow-hidden">' +
+              '<div class="h-full rounded-full" style="width:' +
+              pct.toFixed(1) +
+              '%; background-color:' +
+              def.color +
+              ';"></div>' +
+              '</div>' +
+              '</div>'
+            );
+          })
+          .join('');
+      }
+
+      function updateHUD() {
+        document.getElementById('scoreText').textContent = score.toLocaleString();
+        document.getElementById('highScoreText').textContent = highScore.toLocaleString();
+        document.getElementById('sectorNumText').textContent = String(sector);
+        document.getElementById('sectorShapeText').textContent = tunnel.name;
+
+        const comboEl = document.getElementById('comboText');
+        const decayWrap = document.getElementById('comboDecayWrap');
+        comboEl.textContent = combo + 'X';
+        comboEl.className =
+          combo >= 8
+            ? 'font-display text-base sm:text-xl font-black text-amber-300 leading-none'
+            : combo >= 3
+            ? 'font-display text-base sm:text-xl font-black text-fuchsia-300 leading-none'
+            : 'font-display text-base sm:text-xl font-black text-white leading-none';
+        decayWrap.classList.toggle('hidden', combo <= 1 || comboTimer <= 0);
+
+        // Superzapper Bar
+        const zapBtn = document.getElementById('zapperHudBtn');
+        const zapLabel = document.getElementById('zapperLabelText');
+        const zapFill = document.getElementById('zapperBarFill');
+        const touchZapBtn = document.getElementById('touchZapperBtn');
+        const touchZapLabel = document.getElementById('touchZapperLabel');
+
+        if (rainbowOverdriveTimer > 0) {
+          zapLabel.textContent = 'OVERDRIVE ' + rainbowOverdriveTimer.toFixed(1) + 's';
+          zapFill.style.width = ((rainbowOverdriveTimer / 4.0) * 100).toFixed(1) + '%';
+          zapBtn.classList.add('zapper-ready-glow');
+          if (touchZapBtn) touchZapBtn.classList.add('zapper-ready-glow');
+          if (touchZapLabel) touchZapLabel.textContent = '2X ACTIVE';
+        } else if (superzapperCharge >= 100) {
+          zapLabel.textContent = 'ZAPPER READY!';
+          zapFill.style.width = '100%';
+          zapBtn.classList.add('zapper-ready-glow');
+          if (touchZapBtn) touchZapBtn.classList.add('zapper-ready-glow');
+          if (touchZapLabel) touchZapLabel.textContent = 'FIRE ZAPPER!';
+        } else {
+          const pct = Math.floor(superzapperCharge);
+          zapLabel.textContent = 'ZAPPER ' + pct + '%';
+          zapFill.style.width = pct + '%';
+          zapBtn.classList.remove('zapper-ready-glow');
+          if (touchZapBtn) touchZapBtn.classList.remove('zapper-ready-glow');
+          if (touchZapLabel) touchZapLabel.textContent = 'ZAPPER ' + pct + '%';
+        }
+
+        // Boss Health Bar
+        const bossHud = document.getElementById('bossHudPanel');
+        if (boss) {
+          bossHud.classList.remove('hidden');
+          document.getElementById('bossTitleText').textContent = '⚠ ' + boss.name;
+          document.getElementById('bossHpText').textContent = Math.ceil(boss.hp) + ' / ' + Math.ceil(boss.maxHp);
+          document.getElementById('bossHpFill').style.width = Math.max(0, (boss.hp / boss.maxHp) * 100).toFixed(1) + '%';
+        } else {
+          bossHud.classList.add('hidden');
+        }
+      }
+
+      // =========================================================================
+      // 6. POWER-UP COLLECTION & SUPERZAPPER OVERDRIVE
+      // =========================================================================
+      function chooseRandomPowerup() {
+        const pool = Object.values(POWERUP_DEFS);
+        const total = pool.reduce(function (sum, item) {
+          return sum + item.weight;
+        }, 0);
+        let r = Math.random() * total;
+        for (let i = 0; i < pool.length; i++) {
+          r -= pool[i].weight;
+          if (r <= 0) return pool[i].id;
+        }
+        return 'wingman';
+      }
+
+      function activatePowerup(type, px, py) {
+        const def = POWERUP_DEFS[type];
+        if (!def) return;
+
+        sfx.powerup();
+        spawnParticles(px, py, def.color, 20, 1.15);
+        spawnPopup(px, py - 14, def.name + '!', def.color);
+
+        activeTimers[type] = { remaining: def.duration, duration: def.duration };
+
+        if (type === 'aegis') {
+          if (shields < maxShields) {
+            shields++;
+            renderShieldsHUD();
+            spawnPopup(px, py - 32, '+1 SHIELD!', '#00ff66');
+          } else {
+            addScore(400, px, py - 32, '#00ff66');
+          }
+        }
+
+        renderPowerupsHUD();
+      }
+
+      window.activateSuperzapper = function () {
+        if (gameState !== 'PLAYING' || superzapperCharge < 100 || rainbowOverdriveTimer > 0) return;
+
+        superzapperCharge = 0;
+        rainbowOverdriveTimer = 4.0;
+        sfx.superzapper();
+        triggerShake(0.45, 12);
+        triggerFlash('#ffffff', 0.34);
+
+        const rimPt = getLanePoint(player.visualLane, 1.0);
+        spawnPopup(rimPt.x, rimPt.y - 26, '⚡ SUPERZAPPER OVERDRIVE! ⚡', '#ffe600');
+
+        // Send rainbow-neon plasma wave surging down EVERY lane simultaneously
+        for (let l = 0; l < tunnel.lanes; l++) {
+          zapperWaves.push({
+            lane: l,
+            z: 1.0,
+            hueOffset: (l / tunnel.lanes) * 360
+          });
+        }
+
+        // Clear all spike rails & enemy bolts
+        spikeRails.length = 0;
+        enemyBolts.length = 0;
+
+        // Vaporize all standard enemies across the vortex
+        for (let i = enemies.length - 1; i >= 0; i--) {
+          const e = enemies[i];
+          const pt = getLanePoint(e.lane, e.z);
+          spawnParticles(pt.x, pt.y, e.color, 14, 1.15);
+          addScore(e.points, pt.x, pt.y, '#ffe600');
+          enemies.splice(i, 1);
+        }
+
+        // Deal heavy damage to Sector Core Overlord if active
+        if (boss) {
+          const zapDmg = Math.max(480, Math.round(boss.maxHp * 0.42));
+          damageBoss(zapDmg, '#ffe600');
+        }
+
+        updateHUD();
+      };
+
+      // =========================================================================
+      // 7. WEAPONS, FIRING & DEFENSIVE REPULSION SHOCKWAVE
+      // =========================================================================
+      function fireFromLane(laneIdx) {
+        const isRail = Boolean(activeTimers.railbeam);
+        const isTesla = Boolean(activeTimers.tesla);
+        const isOverclock = Boolean(activeTimers.overclock);
+        const rimPt = getLanePoint(laneIdx, 0.98);
+
+        if (isRail) {
+          // Instant full-depth piercing laser beam down the entire lane
+          railBeams.push({
+            lane: laneIdx,
+            life: 0.22,
+            maxLife: 0.22
+          });
+          spawnParticles(rimPt.x, rimPt.y, '#ff00ff', 6, 0.7);
+
+          // Clear spike rails in this lane
+          for (let s = spikeRails.length - 1; s >= 0; s--) {
+            if (spikeRails[s].lane === laneIdx) spikeRails.splice(s, 1);
+          }
+
+          // Vaporize all enemies in this lane
+          for (let i = enemies.length - 1; i >= 0; i--) {
+            if (enemies[i].lane === laneIdx) {
+              destroyEnemy(i, true);
+            }
+          }
+
+          // Pierce Sector Core Overlord
+          if (boss) {
+            damageBoss(52, '#ff00ff');
+          }
+          return;
+        }
+
+        // Standard, Tesla Arc, or Rapid Overclock Triple-Spread Bolts
+        const spreadOffsets = isOverclock ? [-0.22, 0, 0.22] : [0];
+        const boltColor = isTesla ? '#ffe600' : isOverclock ? '#ff6b00' : '#00f3ff';
+
+        for (let s = 0; s < spreadOffsets.length; s++) {
+          bolts.push({
+            lane: laneIdx,
+            lateralOffset: spreadOffsets[s],
+            z: 0.97,
+            speed: isOverclock ? 2.45 : 2.05,
+            damage: isOverclock ? 22 : 28,
+            tesla: isTesla,
+            color: boltColor
+          });
+        }
+      }
+
+      function triggerPlayerVolley() {
+        if (player.fireCooldown > 0) return;
+
+        const isOverclock = Boolean(activeTimers.overclock);
+        const isOd = rainbowOverdriveTimer > 0;
+        const rateMult = (isOverclock ? 2.5 : 1.0) * (isOd ? 2.0 : 1.0);
+        const baseCd = activeTimers.railbeam ? 0.26 : 0.17;
+        player.fireCooldown = baseCd / rateMult;
+
+        const mode = activeTimers.railbeam
+          ? 'railbeam'
+          : activeTimers.tesla
+          ? 'tesla'
+          : isOverclock
+          ? 'overclock'
+          : 'normal';
+        sfx.laser(mode);
+
+        fireFromLane(player.lane);
+
+        if (activeTimers.wingman) {
+          const wLane = getWingmanLane(player.lane);
+          if (wLane !== player.lane) {
+            fireFromLane(wLane);
+          }
+        }
+      }
+
+      function triggerTeslaChain(originLane, originZ) {
+        const targets = [];
+        const candidateOffsets = [-1, 1, -2, 2];
+        for (let c = 0; c < candidateOffsets.length && targets.length < 3; c++) {
+          const targetLane = normalizeLane(originLane + candidateOffsets[c]);
+          if (targetLane === originLane) continue;
+          // Find closest enemy in targetLane
+          let bestIdx = -1;
+          let bestZDiff = 0.45;
+          for (let i = 0; i < enemies.length; i++) {
+            if (enemies[i].lane === targetLane) {
+              const zd = Math.abs(enemies[i].z - originZ);
+              if (zd < bestZDiff) {
+                bestZDiff = zd;
+                bestIdx = i;
+              }
+            }
+          }
+          if (bestIdx !== -1) {
+            targets.push(enemies[bestIdx]);
+          }
+        }
+
+        if (targets.length > 0) {
+          const p0 = getLanePoint(originLane, originZ);
+          const arcPts = [{ x: p0.x, y: p0.y }];
+          for (let t = 0; t < targets.length; t++) {
+            const enemy = targets[t];
+            const pt = getLanePoint(enemy.lane, enemy.z);
+            arcPts.push({ x: pt.x, y: pt.y });
+            const idx = enemies.indexOf(enemy);
+            if (idx !== -1) {
+              damageEnemy(idx, 30, true);
+            }
+          }
+          lightningArcs.push({
+            points: arcPts,
+            life: 0.2,
+            maxLife: 0.2
+          });
+        }
+      }
+
+      function handlePlayerDamaged() {
+        if (player.invulnTimer > 0) return;
+
+        // If Aegis Barrier is active, absorb the hit and trigger a free repulsion blast!
+        if (activeTimers.aegis) {
+          delete activeTimers.aegis;
+          renderPowerupsHUD();
+          player.invulnTimer = 1.0;
+          sfx.powerup();
+          triggerShake(0.25, 8);
+          triggerFlash('#00ff66', 0.24);
+          const rimPt = getLanePoint(player.visualLane, 1.0);
+          spawnPopup(rimPt.x, rimPt.y - 24, 'AEGIS DEFLECT!', '#00ff66');
+          triggerDefensiveRepulsionShockwave();
+          return;
+        }
+
+        shields = Math.max(0, shields - 1);
+        combo = 1;
+        comboTimer = 0;
+        player.invulnTimer = 1.2;
+
+        renderShieldsHUD();
+        updateHUD();
+        sfx.shieldHit();
+        triggerShake(0.42, 12);
+        triggerFlash('#ff1e56', 0.34);
+
+        const rimPt = getLanePoint(player.visualLane, 1.0);
+        spawnParticles(rimPt.x, rimPt.y, '#ff1e56', 28, 1.25);
+        spawnPopup(rimPt.x, rimPt.y - 28, 'SHIELD BREACH! -1', '#ff1e56');
+
+        triggerDefensiveRepulsionShockwave();
+
+        if (shields <= 0) {
+          triggerGameOver();
+        }
+      }
+
+      function triggerDefensiveRepulsionShockwave() {
+        // Rim-clearing shockwave blasts nearby enemies back down the tunnel so you never get pinned
+        for (let l = 0; l < tunnel.lanes; l++) {
+          shockwaves.push({
+            lane: l,
+            z: 1.0,
+            targetZ: 0.35,
+            life: 0.32,
+            maxLife: 0.32
+          });
+        }
+
+        for (let i = enemies.length - 1; i >= 0; i--) {
+          if (enemies[i].z > 0.42) {
+            enemies[i].z = 0.22 + Math.random() * 0.1;
+            enemies[i].flipping = false;
+          }
+        }
+
+        for (let i = enemyBolts.length - 1; i >= 0; i--) {
+          if (enemyBolts[i].z > 0.4) {
+            enemyBolts.splice(i, 1);
+          }
+        }
+
+        for (let i = spikeRails.length - 1; i >= 0; i--) {
+          spikeRails[i].topZ = Math.min(spikeRails[i].topZ, 0.38);
+        }
+      }
+
+      // =========================================================================
+      // 8. ENEMIES & SECTOR CORE OVERLORD BOSS
+      // =========================================================================
+      function spawnEnemy() {
+        const lane = Math.floor(Math.random() * tunnel.lanes);
+        const roll = Math.random();
+
+        if (sector >= 2 && roll < 0.22) {
+          // 4. Sniper Orb (Electric Violet)
+          enemies.push({
+            id: nextEnemyId++,
+            type: 'sniper',
+            lane: lane,
+            z: 0.03,
+            speed: 0.24,
+            haltZ: 0.36 + Math.random() * 0.12,
+            aimTimer: 0,
+            fireCooldown: 1.35,
+            hp: 34,
+            points: 180,
+            color: '#9d00ff',
+            rot: 0
+          });
+        } else if (roll < 0.44) {
+          // 3. Prism Splitter (Amber Gold)
+          enemies.push({
+            id: nextEnemyId++,
+            type: 'splitter',
+            lane: lane,
+            z: 0.03,
+            speed: 0.17 + Math.min(0.12, sector * 0.015),
+            hp: 36,
+            points: 150,
+            color: '#ffbe0b',
+            rot: 0
+          });
+        } else if (roll < 0.68) {
+          // 2. Spike Pulsar (Lime Green)
+          enemies.push({
+            id: nextEnemyId++,
+            type: 'pulsar',
+            lane: lane,
+            z: 0.03,
+            speed: 0.16 + Math.min(0.12, sector * 0.015),
+            hp: 32,
+            points: 140,
+            color: '#39ff14',
+            rot: 0
+          });
+        } else {
+          // 1. Vector Flipper (Neon Red/Pink)
+          enemies.push({
+            id: nextEnemyId++,
+            type: 'flipper',
+            lane: lane,
+            z: 0.03,
+            speed: 0.2 + Math.min(0.15, sector * 0.018),
+            flipping: false,
+            flipDir: Math.random() < 0.5 ? 1 : -1,
+            flipTimer: 0.45,
+            hp: 26,
+            points: 120,
+            color: '#ff1e56',
+            rot: 0
+          });
+        }
+      }
+
+      function spawnCapsule() {
+        const lane = Math.floor(Math.random() * tunnel.lanes);
+        capsules.push({
+          lane: lane,
+          z: 0.04,
+          speed: 0.24,
+          type: chooseRandomPowerup(),
+          rot: 0
+        });
+      }
+
+      function spawnSectorCoreBoss() {
+        bossSpawnedInSector = true;
+        const maxHp = 950 + (sector - 1) * 420;
+        boss = {
+          name: 'SECTOR CORE OVERLORD MK-' + sector,
+          hp: maxHp,
+          maxHp: maxHp,
+          z: 0.16,
+          rotOuter: 0,
+          rotInner: 0,
+          attackState: 'idle', // 'idle' | 'telegraph'
+          attackTimer: 1.8,
+          sweptLanes: [],
+          escortTimer: 3.4,
+          hitFlash: 0
+        };
+
+        sfx.bossAlarm();
+        triggerShake(0.45, 10);
+        showSectorToast('⚠ CORE OVERLORD DETECTED ⚠', boss.name);
+        updateHUD();
+      }
+
+      function damageEnemy(index, dmg, skipTesla) {
+        const e = enemies[index];
+        if (!e) return;
+        e.hp -= dmg;
+        if (e.hp <= 0) {
+          destroyEnemy(index, skipTesla);
+        } else {
+          const pt = getLanePoint(e.lane, e.z);
+          spawnParticles(pt.x, pt.y, e.color, 5, 0.7);
+        }
+      }
+
+      function destroyEnemy(index, skipTesla) {
+        const e = enemies[index];
+        if (!e) return;
+        enemies.splice(index, 1);
+
+        const pt = getLanePoint(e.lane, e.z);
+        sfx.explosion(false);
+        spawnParticles(pt.x, pt.y, e.color, 16, 1.0);
+        registerComboKill(7);
+        addScore(e.points, pt.x, pt.y, e.color);
+
+        if (!boss) {
+          sectorKills++;
+          if (sectorKills >= sectorKillQuota && !bossSpawnedInSector) {
+            spawnSectorCoreBoss();
+          }
+        }
+
+        // Prism Splitter spawns two fast mini-crawlers in neighboring lanes
+        if (e.type === 'splitter') {
+          const leftLane = normalizeLane(e.lane - 1);
+          const rightLane = normalizeLane(e.lane + 1);
+          const splitLanes = leftLane === rightLane ? [leftLane] : [leftLane, rightLane];
+          for (let s = 0; s < splitLanes.length; s++) {
+            enemies.push({
+              id: nextEnemyId++,
+              type: 'mini_prism',
+              lane: splitLanes[s],
+              z: Math.min(0.88, e.z + 0.03),
+              speed: 0.31 + Math.min(0.14, sector * 0.015),
+              hp: 18,
+              points: 90,
+              color: '#ffbe0b',
+              rot: 0
+            });
+          }
+        }
+
+        // Chance to drop a Power-Up Capsule
+        if (capsules.length < 3 && Math.random() < 0.16) {
+          capsules.push({
+            lane: e.lane,
+            z: Math.max(0.12, e.z),
+            speed: 0.25,
+            type: chooseRandomPowerup(),
+            rot: 0
+          });
+        }
+
+        // Tesla Arc Chain Lightning
+        if (!skipTesla && activeTimers.tesla) {
+          triggerTeslaChain(e.lane, e.z);
+        }
+      }
+
+      function damageBoss(amount, color) {
+        if (!boss) return;
+        boss.hp -= amount;
+        boss.hitFlash = 0.07;
+
+        if (boss.hp <= 0) {
+          const clearBonus = 2000 * sector;
+          boss = null;
+          enemyBolts.length = 0;
+          spikeRails.length = 0;
+
+          sfx.explosion(true);
+          sfx.powerup();
+          triggerShake(0.65, 16);
+          triggerFlash('#00f3ff', 0.42);
+          spawnParticles(centerX, centerY, '#00f3ff', 50, 1.5);
+          spawnParticles(centerX, centerY, '#ff00ff', 50, 1.5);
+          spawnParticles(centerX, centerY, '#ffe600', 40, 1.4);
+
+          registerComboKill(25);
+          addScore(clearBonus, centerX, centerY - 24, '#ffe600');
+
+          // Advance to next Sector & Warp-Jump into the next geometric tunnel shape!
+          sector++;
+          sectorKills = 0;
+          sectorKillQuota = 20 + sector * 5;
+          bossSpawnedInSector = false;
+          tunnel = getTunnelDefinition(sector);
+          tunnelAngle = 0;
+          player.lane = normalizeLane(player.lane);
+          player.visualLane = player.lane;
+          warpTransitionTimer = 1.4;
+
+          // Guarantee 2 Power-Up capsules at start of new Sector
+          spawnCapsule();
+          spawnCapsule();
+
+          showSectorToast('WARP COMPLETE', 'SECTOR ' + sector + ': ' + tunnel.name);
+        }
+        updateHUD();
+      }
+
+      // =========================================================================
+      // 9. SIMULATION UPDATE LOOP (LOCKED 60 FPS DELTA-TIME)
+      // =========================================================================
+      function update(dt) {
+        // Subtle synth bass beat pulse
+        beatTimer += dt;
+        if (beatTimer >= 0.46) {
+          beatTimer -= 0.46;
+          beatCount++;
+          beatPulse = 1.0;
+          if (gameState === 'PLAYING') {
+            sfx.bassBeat(beatCount % 4 === 0);
+          }
+        }
+        beatPulse *= Math.pow(0.01, dt);
+
+        // Rotate tunnel gently on Sector 6+ or during Menu preview
+        if (gameState === 'MENU') {
+          tunnelAngle += 0.22 * dt;
+        } else if (gameState === 'PLAYING' && tunnel.rotateSpeed) {
+          tunnelAngle += tunnel.rotateSpeed * dt;
+        }
+
+        // Scroll starfield toward viewer
+        const starSpeedMult = warpTransitionTimer > 0 ? 5.5 : gameState === 'PLAYING' ? 1.4 : 0.7;
+        for (let i = 0; i < stars.length; i++) {
+          stars[i].z += stars[i].speed * starSpeedMult * dt;
+          if (stars[i].z > 1.08) {
+            stars[i].z = 0.02;
+            stars[i].angle = Math.random() * Math.PI * 2;
+          }
+        }
+
+        // Update pooled particles & visual FX
+        for (let i = 0; i < MAX_PARTICLES; i++) {
+          const p = particles[i];
+          if (!p.active) continue;
+          p.life -= dt;
+          if (p.life <= 0) {
+            p.active = false;
+          } else {
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.vx *= 0.94;
+            p.vy *= 0.94;
+          }
+        }
+
+        for (let i = railBeams.length - 1; i >= 0; i--) {
+          railBeams[i].life -= dt;
+          if (railBeams[i].life <= 0) railBeams.splice(i, 1);
+        }
+
+        for (let i = lightningArcs.length - 1; i >= 0; i--) {
+          lightningArcs[i].life -= dt;
+          if (lightningArcs[i].life <= 0) lightningArcs.splice(i, 1);
+        }
+
+        for (let i = shockwaves.length - 1; i >= 0; i--) {
+          const sw = shockwaves[i];
+          sw.life -= dt;
+          sw.z += (sw.targetZ - sw.z) * 12 * dt;
+          if (sw.life <= 0) shockwaves.splice(i, 1);
+        }
+
+        for (let i = zapperWaves.length - 1; i >= 0; i--) {
+          zapperWaves[i].z -= 2.8 * dt;
+          if (zapperWaves[i].z <= 0) zapperWaves.splice(i, 1);
+        }
+
+        for (let i = popups.length - 1; i >= 0; i--) {
+          popups[i].y += popups[i].vy * dt;
+          popups[i].life -= dt;
+          if (popups[i].life <= 0) popups.splice(i, 1);
+        }
+
+        if (shakeTime > 0) shakeTime = Math.max(0, shakeTime - dt);
+        if (flashAlpha > 0) flashAlpha = Math.max(0, flashAlpha - dt * 1.3);
+        if (warpTransitionTimer > 0) warpTransitionTimer = Math.max(0, warpTransitionTimer - dt);
+        if (sectorToastTimer > 0) {
+          sectorToastTimer -= dt;
+          if (sectorToastTimer <= 0) document.getElementById('sectorToast').classList.add('hidden');
+        }
+
+        if (gameState !== 'PLAYING') return;
+
+        // 1. Continuous Hold-Stepping around the Vortex Rim
+        const activeDir =
+          keys.ArrowLeft || keys.KeyA || touchBtns.left
+            ? -1
+            : keys.ArrowRight || keys.KeyD || touchBtns.right
+            ? 1
+            : 0;
+
+        if (activeDir !== 0) {
+          if (holdDir !== activeDir) {
+            holdDir = activeDir;
+            holdTimer = 0.16; // Initial delay after tap before rapid continuous glide
+          } else {
+            holdTimer -= dt;
+            if (holdTimer <= 0) {
+              holdTimer = 0.075;
+              stepPlayerLane(activeDir);
+            }
+          }
+        } else {
+          holdDir = 0;
+        }
+
+        // Smooth shortest-path visual interpolation for gliding claw-fighter
+        const N = tunnel.lanes;
+        if (tunnel.closed) {
+          let diff = ((player.lane - player.visualLane + N + N * 0.5) % N) - N * 0.5;
+          player.visualLane = ((player.visualLane + diff * Math.min(1, 24 * dt)) % N + N) % N;
+        } else {
+          player.visualLane += (player.lane - player.visualLane) * Math.min(1, 24 * dt);
+        }
+
+        // 2. Player Timers, Combo Decay & Power-Up Countdowns
+        if (player.invulnTimer > 0) player.invulnTimer = Math.max(0, player.invulnTimer - dt);
+        if (player.fireCooldown > 0) player.fireCooldown = Math.max(0, player.fireCooldown - dt);
+        if (rainbowOverdriveTimer > 0) rainbowOverdriveTimer = Math.max(0, rainbowOverdriveTimer - dt);
+
+        if (combo > 1 && comboTimer > 0) {
+          comboTimer = Math.max(0, comboTimer - dt);
+          document.getElementById('comboDecayFill').style.width = ((comboTimer / COMBO_WINDOW_SEC) * 100).toFixed(1) + '%';
+          if (comboTimer === 0) {
+            combo = 1;
+          }
+        }
+
+        let timersDirty = false;
+        for (const k of Object.keys(activeTimers)) {
+          activeTimers[k].remaining -= dt;
+          timersDirty = true;
+          if (activeTimers[k].remaining <= 0) {
+            delete activeTimers[k];
+          }
+        }
+        if (timersDirty) renderPowerupsHUD();
+
+        // 3. Auto-Fire or Manual Fire
+        const manualFiring = keys.Space || keys.KeyW || keys.ArrowUp || keys.MouseDown;
+        if (autoFire || manualFiring) {
+          triggerPlayerVolley();
+        }
+
+        // 4. Update Player Bolts & Lane Collisions
+        for (let i = bolts.length - 1; i >= 0; i--) {
+          const b = bolts[i];
+          b.z -= b.speed * dt;
+          if (b.z <= 0.03) {
+            // If Boss is active, hit the Sector Core Overlord!
+            if (boss) {
+              const corePt = getLanePoint(b.lane, 0.15);
+              spawnParticles(corePt.x, corePt.y, b.color, 6, 0.7);
+              damageBoss(b.damage, b.color);
+            }
+            bolts.splice(i, 1);
+            continue;
+          }
+
+          let boltUsed = false;
+
+          // Check collision with Enemies in the same lane
+          for (let e = enemies.length - 1; e >= 0; e--) {
+            const enemy = enemies[e];
+            if (enemy.lane === b.lane && Math.abs(enemy.z - b.z) <= 0.075) {
+              boltUsed = true;
+              damageEnemy(e, b.damage, false);
+              break;
+            }
+          }
+
+          // Check collision with Spike Rails in the same lane (shoot spikes down!)
+          if (!boltUsed) {
+            for (let s = spikeRails.length - 1; s >= 0; s--) {
+              const sr = spikeRails[s];
+              if (sr.lane === b.lane && b.z <= sr.topZ) {
+                boltUsed = true;
+                sr.topZ -= 0.14;
+                const spPt = getLanePoint(sr.lane, Math.max(0.05, sr.topZ));
+                spawnParticles(spPt.x, spPt.y, '#39ff14', 5, 0.65);
+                if (sr.topZ <= 0.06) {
+                  spikeRails.splice(s, 1);
+                  addScore(50, spPt.x, spPt.y, '#39ff14');
+                }
+                break;
+              }
+            }
+          }
+
+          // Shootable Power-Up Capsules!
+          if (!boltUsed) {
+            for (let c = capsules.length - 1; c >= 0; c--) {
+              const cap = capsules[c];
+              if (cap.lane === b.lane && Math.abs(cap.z - b.z) <= 0.075) {
+                boltUsed = true;
+                const cPt = getLanePoint(cap.lane, cap.z);
+                capsules.splice(c, 1);
+                activatePowerup(cap.type, cPt.x, cPt.y);
+                break;
+              }
+            }
+          }
+
+          if (boltUsed) {
+            bolts.splice(i, 1);
+          }
+        }
+
+        // 5. Enemy & Power-Up Spawners
+        const enemyTimeScale = activeTimers.chrono ? 0.4 : 1.0;
+
+        if (!boss) {
+          enemySpawnTimer -= dt;
+          if (enemySpawnTimer <= 0 && enemies.length < 18) {
+            enemySpawnTimer = Math.max(0.42, 1.05 - sector * 0.06);
+            spawnEnemy();
+          }
+        }
+
+        capsuleSpawnTimer -= dt;
+        if (capsuleSpawnTimer <= 0 && capsules.length < 2) {
+          capsuleSpawnTimer = 8.5;
+          spawnCapsule();
+        }
+
+        // 6. Update Enemies
+        for (let i = enemies.length - 1; i >= 0; i--) {
+          const e = enemies[i];
+          e.rot += 3.2 * dt;
+
+          if (e.type === 'sniper') {
+            if (e.z < e.haltZ) {
+              e.z += e.speed * dt * enemyTimeScale;
+            } else {
+              e.fireCooldown -= dt * enemyTimeScale;
+              if (e.fireCooldown <= 0.9 && e.fireCooldown > 0) {
+                e.aimTimer = e.fireCooldown;
+              } else if (e.fireCooldown <= 0) {
+                e.aimTimer = 0;
+                e.fireCooldown = 2.3;
+                enemyBolts.push({
+                  lane: e.lane,
+                  z: e.z + 0.04,
+                  speed: 0.72,
+                  color: '#9d00ff'
+                });
+              }
+            }
+          } else if (e.type === 'flipper' && e.flipping) {
+            // Flipping along the rim hunting the player!
+            e.flipTimer -= dt * enemyTimeScale;
+            if (e.flipTimer <= 0) {
+              e.flipTimer = Math.max(0.28, 0.5 - sector * 0.02);
+              const nextLane = e.lane + e.flipDir;
+              if (!tunnel.closed && (nextLane < 0 || nextLane >= tunnel.lanes)) {
+                e.flipDir *= -1;
+                e.lane = normalizeLane(e.lane + e.flipDir);
+              } else {
+                e.lane = normalizeLane(nextLane);
+              }
+              const fPt = getLanePoint(e.lane, 0.98);
+              spawnParticles(fPt.x, fPt.y, '#ff1e56', 5, 0.6);
+            }
+          } else {
+            e.z += e.speed * dt * enemyTimeScale;
+
+            // Spike Pulsar leaves a growing laser spike rail behind it
+            if (e.type === 'pulsar') {
+              let existingRail = spikeRails.find(function (sr) {
+                return sr.lane === e.lane;
+              });
+              if (!existingRail) {
+                spikeRails.push({ lane: e.lane, topZ: e.z });
+              } else if (e.z > existingRail.topZ) {
+                existingRail.topZ = e.z;
+              }
+            }
+
+            // Reached the outer rim (z >= 0.98)
+            if (e.z >= 0.98) {
+              e.z = 0.98;
+
+              // If Aegis Barrier is active on player's lane, vaporize enemy on contact!
+              if (activeTimers.aegis && e.lane === player.lane) {
+                destroyEnemy(i, false);
+                continue;
+              }
+
+              // Direct collision with Player Claw-Fighter
+              if (e.lane === player.lane) {
+                enemies.splice(i, 1);
+                handlePlayerDamaged();
+                continue;
+              }
+
+              // Vector Flippers begin flipping around the rim; others wrap/retreat
+              if (e.type === 'flipper') {
+                e.flipping = true;
+                // Steer flip direction toward player
+                const diff = player.lane - e.lane;
+                e.flipDir = diff >= 0 ? 1 : -1;
+                e.flipTimer = 0.35;
+              } else {
+                // Non-flippers retreat back into the core and re-emerge in a new lane
+                e.z = 0.04;
+                e.lane = Math.floor(Math.random() * tunnel.lanes);
+              }
+            }
+          }
+
+          // Check if a flipping Vector Flipper just stepped onto the player's lane!
+          if (e && e.flipping && e.lane === player.lane) {
+            if (activeTimers.aegis) {
+              destroyEnemy(i, false);
+            } else {
+              enemies.splice(i, 1);
+              handlePlayerDamaged();
+            }
+          }
+        }
+
+        // 7. Update Spike Rails & Enemy Bolts
+        for (let s = spikeRails.length - 1; s >= 0; s--) {
+          const sr = spikeRails[s];
+          if (sr.topZ >= 0.96 && sr.lane === player.lane) {
+            if (activeTimers.aegis) {
+              spikeRails.splice(s, 1);
+              const pt = getLanePoint(sr.lane, 0.96);
+              spawnParticles(pt.x, pt.y, '#00ff66', 10, 0.8);
+            } else {
+              spikeRails.splice(s, 1);
+              handlePlayerDamaged();
+            }
+          }
+        }
+
+        for (let i = enemyBolts.length - 1; i >= 0; i--) {
+          const eb = enemyBolts[i];
+          eb.z += eb.speed * dt * enemyTimeScale;
+          if (eb.z >= 0.98) {
+            enemyBolts.splice(i, 1);
+            if (eb.lane === player.lane) {
+              if (activeTimers.aegis) {
+                const pt = getLanePoint(eb.lane, 0.98);
+                spawnParticles(pt.x, pt.y, '#00ff66', 10, 0.8);
+              } else {
+                handlePlayerDamaged();
+              }
+            }
+          }
+        }
+
+        // 8. Update Power-Up Capsules (Collect by moving into lane at rim or shooting)
+        for (let i = capsules.length - 1; i >= 0; i--) {
+          const cap = capsules[i];
+          cap.z += cap.speed * dt;
+          cap.rot += 3.5 * dt;
+
+          if (cap.z >= 0.94 && (cap.lane === player.lane || (activeTimers.wingman && cap.lane === getWingmanLane(player.lane)))) {
+            const pt = getLanePoint(cap.lane, cap.z);
+            capsules.splice(i, 1);
+            activatePowerup(cap.type, pt.x, pt.y);
+            continue;
+          }
+
+          if (cap.z > 1.05) {
+            capsules.splice(i, 1);
+          }
+        }
+
+        // 9. Update SECTOR CORE OVERLORD Boss
+        if (boss) {
+          boss.rotOuter += 1.1 * dt;
+          boss.rotInner -= 1.8 * dt;
+          if (boss.hitFlash > 0) boss.hitFlash = Math.max(0, boss.hitFlash - dt);
+
+          // Escort Spawns
+          boss.escortTimer -= dt * enemyTimeScale;
+          if (boss.escortTimer <= 0 && enemies.length < 6) {
+            boss.escortTimer = Math.max(2.6, 4.2 - sector * 0.2);
+            spawnEnemy();
+          }
+
+          // Telegraphed Multi-Lane Laser Sweeps
+          boss.attackTimer -= dt * enemyTimeScale;
+          if (boss.attackState === 'idle' && boss.attackTimer <= 0) {
+            boss.attackState = 'telegraph';
+            boss.attackTimer = 1.05;
+            const sweepCount = Math.min(tunnel.lanes - 2, 3 + Math.floor(sector * 0.5));
+            const chosen = new Set();
+            chosen.add(player.lane);
+            while (chosen.size < sweepCount) {
+              chosen.add(Math.floor(Math.random() * tunnel.lanes));
+            }
+            boss.sweptLanes = Array.from(chosen);
+          } else if (boss.attackState === 'telegraph' && boss.attackTimer <= 0) {
+            boss.attackState = 'idle';
+            boss.attackTimer = Math.max(1.8, 2.8 - sector * 0.14);
+            for (let l = 0; l < boss.sweptLanes.length; l++) {
+              enemyBolts.push({
+                lane: boss.sweptLanes[l],
+                z: 0.2,
+                speed: 0.85,
+                color: '#ff0055'
+              });
+            }
+            boss.sweptLanes = [];
+          }
+        }
+
+        updateHUD();
+      }
+
+      // =========================================================================
+      // 10. DUAL-PASS ADDITIVE VECTOR NEON RENDERER (LOCKED 60 FPS)
+      // =========================================================================
+      function drawDualStroke(buildPathFn, color, outerWidth, innerWidth, whiteCore) {
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // Pass 1: Wide additive outer neon glow
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = 0.34;
+        ctx.lineWidth = outerWidth;
+        ctx.beginPath();
+        buildPathFn();
+        ctx.stroke();
+
+        // Pass 2: Crisp high-intensity core stroke
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1.0;
+        ctx.lineWidth = innerWidth;
+        ctx.beginPath();
+        buildPathFn();
+        ctx.stroke();
+
+        if (whiteCore) {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = Math.max(1, innerWidth * 0.42);
+          ctx.beginPath();
+          buildPathFn();
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      function drawBackgroundAndTunnel(nowSec) {
+        // 1. Deep Obsidian Void (#05050a)
+        ctx.fillStyle = '#05050a';
+        ctx.fillRect(0, 0, viewW, viewH);
+
+        // 2. Subtle Pulsing Radial Energy Grid & Cyber-Starfield
+        const maxBgR = Math.hypot(viewW, viewH) * 0.55;
+        ctx.save();
+        ctx.strokeStyle = activeTimers.chrono
+          ? 'rgba(157, 0, 255, 0.08)'
+          : 'rgba(0, 243, 255, 0.055)';
+        ctx.lineWidth = 1;
+        for (let r = 80; r < maxBgR; r += 95) {
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, r + beatPulse * 4, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        // Cyber-starfield streaming from vanishing point
+        for (let i = 0; i < stars.length; i++) {
+          const st = stars[i];
+          const dist = maxBgR * Math.pow(st.z, 1.5);
+          const sx = centerX + Math.cos(st.angle) * dist;
+          const sy = centerY + Math.sin(st.angle) * dist;
+          ctx.globalAlpha = Math.min(0.85, st.z * 0.9);
+          ctx.fillStyle = st.color;
+          if (warpTransitionTimer > 0) {
+            const tailDist = dist * 0.86;
+            ctx.strokeStyle = st.color;
+            ctx.lineWidth = st.size;
+            ctx.beginPath();
+            ctx.moveTo(centerX + Math.cos(st.angle) * tailDist, centerY + Math.sin(st.angle) * tailDist);
+            ctx.lineTo(sx, sy);
+            ctx.stroke();
+          } else {
+            ctx.fillRect(sx, sy, st.size, st.size);
+          }
+        }
+        ctx.globalAlpha = 1;
+
+        // 3. 3D-Perspective Geometric Vortex Tunnel
+        const numVerts = tunnel.verts.length;
+        const ringDepths = [0.0, 0.22, 0.44, 0.66, 0.84, 1.0];
+        const primaryCol = activeTimers.chrono ? '#9d00ff' : tunnel.primary;
+        const secondaryCol = tunnel.secondary;
+
+        // Concentric depth rings
+        for (let r = 0; r < ringDepths.length; r++) {
+          const z = ringDepths[r];
+          const isOuterRim = r === ringDepths.length - 1;
+          const isInnerCore = r === 0;
+          const alpha = isOuterRim ? 1.0 : 0.18 + z * 0.35;
+
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          drawDualStroke(
+            function () {
+              for (let v = 0; v < numVerts; v++) {
+                const pt = getVertexPoint(v, z);
+                if (v === 0) ctx.moveTo(pt.x, pt.y);
+                else ctx.lineTo(pt.x, pt.y);
+              }
+              if (tunnel.closed) ctx.closePath();
+            },
+            isOuterRim ? primaryCol : isInnerCore ? secondaryCol : primaryCol,
+            isOuterRim ? 11 : 5,
+            isOuterRim ? 2.8 : 1.3,
+            isOuterRim
+          );
+          ctx.restore();
+        }
+
+        // Longitudinal lane struts from inner vanishing core (z=0) to outer rim (z=1)
+        ctx.save();
+        ctx.globalAlpha = 0.45;
+        drawDualStroke(
+          function () {
+            for (let v = 0; v < numVerts; v++) {
+              const pInner = getVertexPoint(v, 0.0);
+              const pOuter = getVertexPoint(v, 1.0);
+              ctx.moveTo(pInner.x, pInner.y);
+              ctx.lineTo(pOuter.x, pOuter.y);
+            }
+          },
+          secondaryCol,
+          6,
+          1.5,
+          false
+        );
+        ctx.restore();
+
+        // Highlight active player lane (and Wingman lane) with subtle neon floor tint
+        const highlightLanes = [player.lane];
+        if (activeTimers.wingman) {
+          const wl = getWingmanLane(player.lane);
+          if (wl !== player.lane) highlightLanes.push(wl);
+        }
+
+        for (let h = 0; h < highlightLanes.length; h++) {
+          const hl = highlightLanes[h];
+          const inPt = getLanePoint(hl, 0.0);
+          const outPt = getLanePoint(hl, 1.0);
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.fillStyle = h === 0 ? 'rgba(0, 243, 255, 0.11)' : 'rgba(0, 243, 255, 0.06)';
+          ctx.beginPath();
+          ctx.moveTo(inPt.left.x, inPt.left.y);
+          ctx.lineTo(inPt.right.x, inPt.right.y);
+          ctx.lineTo(outPt.right.x, outPt.right.y);
+          ctx.lineTo(outPt.left.x, outPt.left.y);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      function drawSpikeRailsAndTelegraphs(nowSec) {
+        // Lime-Green Spike Pulsar Laser Rails
+        for (let s = 0; s < spikeRails.length; s++) {
+          const sr = spikeRails[s];
+          const p0 = getLanePoint(sr.lane, 0.05);
+          const p1 = getLanePoint(sr.lane, sr.topZ);
+
+          drawDualStroke(
+            function () {
+              ctx.moveTo(p0.x, p0.y);
+              ctx.lineTo(p1.x, p1.y);
+            },
+            '#39ff14',
+            9,
+            2.6,
+            true
+          );
+
+          // Glowing spike tip node
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(p1.x, p1.y, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Boss Multi-Lane Laser Sweep Telegraphs
+        if (boss && boss.attackState === 'telegraph') {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(255, 0, 85, 0.85)';
+          ctx.setLineDash([10, 8]);
+          ctx.lineWidth = 2.5;
+          for (let l = 0; l < boss.sweptLanes.length; l++) {
+            const p0 = getLanePoint(boss.sweptLanes[l], 0.16);
+            const p1 = getLanePoint(boss.sweptLanes[l], 1.0);
+            ctx.beginPath();
+            ctx.moveTo(p0.x, p0.y);
+            ctx.lineTo(p1.x, p1.y);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
+
+      function drawSectorCoreBoss(nowSec) {
+        if (!boss) return;
+        const coreR = outerRadius * getDepthScale(boss.z) * 1.45;
+        const mainColor = boss.hitFlash > 0 ? '#ffffff' : '#ff0055';
+
+        ctx.save();
+        ctx.translate(centerX, centerY);
+
+        // Outer rotating armor hexagon
+        ctx.save();
+        ctx.rotate(boss.rotOuter);
+        drawDualStroke(
+          function () {
+            const sides = 8;
+            for (let i = 0; i < sides; i++) {
+              const a = (i / sides) * Math.PI * 2;
+              const r = i % 2 === 0 ? coreR * 1.25 : coreR * 0.92;
+              const px = Math.cos(a) * r;
+              const py = Math.sin(a) * r;
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+          },
+          mainColor,
+          12,
+          3.2,
+          true
+        );
+        ctx.restore();
+
+        // Inner counter-rotating reactor diamond
+        ctx.save();
+        ctx.rotate(boss.rotInner);
+        drawDualStroke(
+          function () {
+            const sides = 6;
+            for (let i = 0; i < sides; i++) {
+              const a = (i / sides) * Math.PI * 2;
+              const px = Math.cos(a) * coreR * 0.62;
+              const py = Math.sin(a) * coreR * 0.62;
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+          },
+          '#ffe600',
+          8,
+          2.4,
+          false
+        );
+        ctx.restore();
+
+        // Pulsing Core Eye
+        const eyeR = coreR * (0.24 + 0.05 * Math.sin(nowSec * 12));
+        ctx.fillStyle = '#00f3ff';
+        ctx.beginPath();
+        ctx.arc(0, 0, eyeR, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
+
+      function drawEnemiesAndCapsules(nowSec) {
+        // 1. Enemies
+        for (let i = 0; i < enemies.length; i++) {
+          const e = enemies[i];
+          const pt = getLanePoint(e.lane, e.z);
+          const sz = Math.max(7, pt.width * 0.36);
+
+          // Sniper Orb Telegraphed Laser Sight
+          if (e.type === 'sniper' && e.aimTimer > 0) {
+            const rimPt = getLanePoint(e.lane, 1.0);
+            ctx.save();
+            ctx.strokeStyle = 'rgba(157, 0, 255, 0.85)';
+            ctx.setLineDash([8, 6]);
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(pt.x, pt.y);
+            ctx.lineTo(rimPt.x, rimPt.y);
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          ctx.save();
+          ctx.translate(pt.x, pt.y);
+          ctx.rotate(pt.outAngle + Math.PI * 0.5);
+
+          if (e.type === 'flipper') {
+            // Neon Red/Pink Bowtie Hourglass Flipper
+            drawDualStroke(
+              function () {
+                ctx.moveTo(-sz, -sz * 0.65);
+                ctx.lineTo(sz, sz * 0.65);
+                ctx.lineTo(sz, -sz * 0.65);
+                ctx.lineTo(-sz, sz * 0.65);
+                ctx.closePath();
+              },
+              e.color,
+              8,
+              2.2,
+              true
+            );
+          } else if (e.type === 'pulsar') {
+            // Lime-Green Rotating Spike Coil
+            ctx.rotate(e.rot);
+            drawDualStroke(
+              function () {
+                const spikes = 6;
+                for (let s = 0; s < spikes * 2; s++) {
+                  const r = s % 2 === 0 ? sz * 1.05 : sz * 0.45;
+                  const a = (s / (spikes * 2)) * Math.PI * 2;
+                  const px = Math.cos(a) * r;
+                  const py = Math.sin(a) * r;
+                  if (s === 0) ctx.moveTo(px, py);
+                  else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+              },
+              e.color,
+              8,
+              2.1,
+              false
+            );
+          } else if (e.type === 'splitter' || e.type === 'mini_prism') {
+            // Amber Gold Double-Diamond Prism
+            const sMult = e.type === 'mini_prism' ? 0.68 : 1.0;
+            drawDualStroke(
+              function () {
+                ctx.moveTo(0, -sz * sMult);
+                ctx.lineTo(sz * 0.85 * sMult, 0);
+                ctx.lineTo(0, sz * sMult);
+                ctx.lineTo(-sz * 0.85 * sMult, 0);
+                ctx.closePath();
+              },
+              e.color,
+              8,
+              2.2,
+              true
+            );
+          } else if (e.type === 'sniper') {
+            // Electric Violet Sniper Orb
+            drawDualStroke(
+              function () {
+                ctx.arc(0, 0, sz * 0.82, 0, Math.PI * 2);
+              },
+              e.color,
+              8,
+              2.2,
+              true
+            );
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(0, 0, sz * 0.28, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          ctx.restore();
+        }
+
+        // 2. Power-Up Capsules
+        for (let i = 0; i < capsules.length; i++) {
+          const cap = capsules[i];
+          const def = POWERUP_DEFS[cap.type];
+          if (!def) continue;
+          const pt = getLanePoint(cap.lane, cap.z);
+          const sz = Math.max(9, pt.width * 0.34);
+
+          ctx.save();
+          ctx.translate(pt.x, pt.y);
+          ctx.rotate(cap.rot);
+
+          ctx.fillStyle = '#070714';
+          ctx.beginPath();
+          for (let s = 0; s < 6; s++) {
+            const a = (s / 6) * Math.PI * 2;
+            const px = Math.cos(a) * sz;
+            const py = Math.sin(a) * sz;
+            if (s === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+
+          drawDualStroke(
+            function () {
+              for (let s = 0; s < 6; s++) {
+                const a = (s / 6) * Math.PI * 2;
+                const px = Math.cos(a) * sz;
+                const py = Math.sin(a) * sz;
+                if (s === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+              }
+              ctx.closePath();
+            },
+            def.color,
+            9,
+            2.4,
+            true
+          );
+
+          ctx.restore();
+        }
+      }
+
+      function drawBoltsAndBeams(nowSec) {
+        // Player Plasma Bolts
+        for (let i = 0; i < bolts.length; i++) {
+          const b = bolts[i];
+          const headPt = getLanePoint(b.lane + b.lateralOffset, Math.max(0.03, b.z - 0.04));
+          const tailPt = getLanePoint(b.lane + b.lateralOffset, Math.min(1.0, b.z + 0.05));
+
+          drawDualStroke(
+            function () {
+              ctx.moveTo(tailPt.x, tailPt.y);
+              ctx.lineTo(headPt.x, headPt.y);
+            },
+            b.color,
+            8,
+            2.6,
+            true
+          );
+        }
+
+        // Omega Rail-Beams (Full-depth piercing beams)
+        for (let i = 0; i < railBeams.length; i++) {
+          const rb = railBeams[i];
+          const alpha = Math.max(0, rb.life / rb.maxLife);
+          const p0 = getLanePoint(rb.lane, 1.0);
+          const p1 = getLanePoint(rb.lane, 0.04);
+
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          drawDualStroke(
+            function () {
+              ctx.moveTo(p0.x, p0.y);
+              ctx.lineTo(p1.x, p1.y);
+            },
+            '#ff00ff',
+            16 * alpha + 4,
+            4.5 * alpha + 1.5,
+            true
+          );
+          ctx.restore();
+        }
+
+        // Tesla Arc Chain Lightning
+        for (let i = 0; i < lightningArcs.length; i++) {
+          const arc = lightningArcs[i];
+          const alpha = Math.max(0, arc.life / arc.maxLife);
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          drawDualStroke(
+            function () {
+              ctx.moveTo(arc.points[0].x, arc.points[0].y);
+              for (let p = 1; p < arc.points.length; p++) {
+                const prev = arc.points[p - 1];
+                const curr = arc.points[p];
+                const mx = (prev.x + curr.x) * 0.5 + (Math.random() - 0.5) * 22;
+                const my = (prev.y + curr.y) * 0.5 + (Math.random() - 0.5) * 22;
+                ctx.lineTo(mx, my);
+                ctx.lineTo(curr.x, curr.y);
+              }
+            },
+            '#ffe600',
+            10,
+            2.6,
+            true
+          );
+          ctx.restore();
+        }
+
+        // Superzapper Rainbow Waves
+        for (let i = 0; i < zapperWaves.length; i++) {
+          const zw = zapperWaves[i];
+          const pt = getLanePoint(zw.lane, Math.max(0.02, zw.z));
+          const col = 'hsl(' + Math.floor((nowSec * 420 + zw.hueOffset) % 360) + ', 100%, 60%)';
+          drawDualStroke(
+            function () {
+              ctx.moveTo(pt.left.x, pt.left.y);
+              ctx.lineTo(pt.right.x, pt.right.y);
+            },
+            col,
+            12,
+            3.5,
+            true
+          );
+        }
+
+        // Defensive Shockwaves
+        for (let i = 0; i < shockwaves.length; i++) {
+          const sw = shockwaves[i];
+          const alpha = Math.max(0, sw.life / sw.maxLife);
+          const pt = getLanePoint(sw.lane, Math.max(0.05, sw.z));
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          drawDualStroke(
+            function () {
+              ctx.moveTo(pt.left.x, pt.left.y);
+              ctx.lineTo(pt.right.x, pt.right.y);
+            },
+            '#00f3ff',
+            9,
+            2.5,
+            true
+          );
+          ctx.restore();
+        }
+
+        // Enemy Energy Bolts
+        for (let i = 0; i < enemyBolts.length; i++) {
+          const eb = enemyBolts[i];
+          const pt = getLanePoint(eb.lane, eb.z);
+          const r = Math.max(4, pt.width * 0.16);
+          ctx.fillStyle = eb.color;
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, r * 0.45, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function drawClawFighterAt(lanePos, isHologram, nowSec) {
+        const pt = getLanePoint(lanePos, 1.0);
+        const halfW = Math.max(14, pt.width * 0.48);
+        const angle = pt.outAngle + Math.PI; // Points inward into the vortex core
+
+        const rainbowColor = 'hsl(' + Math.floor((nowSec * 360) % 360) + ', 100%, 60%)';
+        const hullColor = isHologram
+          ? '#00f3ff'
+          : rainbowOverdriveTimer > 0
+          ? rainbowColor
+          : activeTimers.railbeam
+          ? '#ff00ff'
+          : activeTimers.tesla
+          ? '#ffe600'
+          : activeTimers.overclock
+          ? '#ff6b00'
+          : '#00f3ff';
+
+        ctx.save();
+        if (isHologram) {
+          ctx.globalAlpha = 0.55 + 0.15 * Math.sin(nowSec * 20);
+        } else if (player.invulnTimer > 0 && Math.sin(nowSec * 38) < -0.15) {
+          ctx.restore();
+          return;
+        }
+
+        ctx.translate(pt.x, pt.y);
+        ctx.rotate(angle);
+
+        // Aegis Front Energy Ram Arc
+        if (!isHologram && activeTimers.aegis) {
+          drawDualStroke(
+            function () {
+              ctx.moveTo(14, -halfW * 1.05);
+              ctx.quadraticCurveTo(28, 0, 14, halfW * 1.05);
+            },
+            '#00ff66',
+            10,
+            2.8,
+            true
+          );
+        }
+
+        // Iconic Neon Claw-Fighter Geometry grasping the lane rails
+        drawDualStroke(
+          function () {
+            // Left outer pincer claw
+            ctx.moveTo(16, -halfW * 0.88);
+            ctx.lineTo(-8, -halfW * 1.02);
+            ctx.lineTo(-14, -halfW * 0.42);
+            // Center nose spire
+            ctx.lineTo(22, 0);
+            // Right outer pincer claw
+            ctx.lineTo(-14, halfW * 0.42);
+            ctx.lineTo(-8, halfW * 1.02);
+            ctx.lineTo(16, halfW * 0.88);
+          },
+          hullColor,
+          10,
+          2.6,
+          true
+        );
+
+        // Inner cockpit core triangle
+        ctx.fillStyle = hullColor;
+        ctx.beginPath();
+        ctx.moveTo(12, 0);
+        ctx.lineTo(-5, -halfW * 0.28);
+        ctx.lineTo(-5, halfW * 0.28);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.restore();
+      }
+
+      function drawParticlesAndPopups() {
+        for (let i = 0; i < MAX_PARTICLES; i++) {
+          const p = particles[i];
+          if (!p.active) continue;
+          ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(p.x - p.size * 0.5, p.y - p.size * 0.5, p.size, p.size);
+        }
+        ctx.globalAlpha = 1;
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '800 13px Orbitron, Inter, sans-serif';
+        for (let i = 0; i < popups.length; i++) {
+          const pop = popups[i];
+          ctx.globalAlpha = Math.min(1, pop.life * 1.4);
+          ctx.fillStyle = '#05050a';
+          ctx.fillText(pop.text, pop.x + 1.5, pop.y + 1.5);
+          ctx.fillStyle = pop.color;
+          ctx.fillText(pop.text, pop.x, pop.y);
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      function render(nowMs) {
+        const nowSec = nowMs * 0.001;
+        ctx.save();
+
+        if (shakeTime > 0) {
+          const mag = (shakeTime / 0.45) * shakeMag;
+          ctx.translate((Math.random() - 0.5) * mag * 2, (Math.random() - 0.5) * mag * 2);
+        }
+
+        drawBackgroundAndTunnel(nowSec);
+        drawSpikeRailsAndTelegraphs(nowSec);
+        drawSectorCoreBoss(nowSec);
+        drawEnemiesAndCapsules(nowSec);
+        drawBoltsAndBeams(nowSec);
+
+        if (gameState === 'PLAYING' || gameState === 'PAUSED') {
+          if (activeTimers.wingman) {
+            const wLane = getWingmanLane(player.visualLane);
+            drawClawFighterAt(wLane, true, nowSec);
+          }
+          drawClawFighterAt(player.visualLane, false, nowSec);
+        }
+
+        drawParticlesAndPopups();
+
+        if (flashAlpha > 0) {
+          ctx.fillStyle = flashColor;
+          ctx.globalAlpha = flashAlpha;
+          ctx.fillRect(0, 0, viewW, viewH);
+          ctx.globalAlpha = 1;
+        }
+
+        ctx.restore();
+      }
+
+      // =========================================================================
+      // 11. NAVIGATION, LIFECYCLE & DESKTOP / TOUCH CONTROLS
+      // =========================================================================
+      function stepPlayerLane(dir) {
+        if (gameState !== 'PLAYING') return;
+        const N = tunnel.lanes;
+        const prev = player.lane;
+        if (tunnel.closed) {
+          player.lane = ((player.lane + dir) % N + N) % N;
+        } else {
+          player.lane = Math.max(0, Math.min(N - 1, player.lane + dir));
+        }
+        if (player.lane !== prev) {
+          sfx.step();
+        }
+      }
+
+      window.startGame = function () {
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        if (now - lastStartCallMs < 150) return;
+        lastStartCallMs = now;
+
+        initAudio();
+        resizeCanvas();
+
+        score = 0;
+        highScore = safeGetHighScore();
+        sector = 1;
+        tunnel = getTunnelDefinition(1);
+        tunnelAngle = 0;
+
+        shields = 3;
+        combo = 1;
+        maxCombo = 1;
+        comboTimer = 0;
+        superzapperCharge = 0;
+        rainbowOverdriveTimer = 0;
+
+        sectorKills = 0;
+        sectorKillQuota = 22;
+        bossSpawnedInSector = false;
+        activeTimers = {};
+
+        player.lane = Math.floor(tunnel.lanes * 0.5);
+        player.visualLane = player.lane;
+        player.fireCooldown = 0;
+        player.invulnTimer = 1.0;
+
+        bolts = [];
+        enemies = [];
+        enemyBolts = [];
+        spikeRails = [];
+        capsules = [];
+        railBeams = [];
+        lightningArcs = [];
+        shockwaves = [];
+        zapperWaves = [];
+        popups = [];
+        boss = null;
+        warpTransitionTimer = 0;
+
+        for (let i = 0; i < MAX_PARTICLES; i++) {
+          particles[i].active = false;
+        }
+
+        enemySpawnTimer = 0.45;
+        capsuleSpawnTimer = 5.5;
+
+        gameState = 'PLAYING';
+        document.getElementById('menuModal').classList.add('hidden');
+        document.getElementById('pauseModal').classList.add('hidden');
+        document.getElementById('gameOverModal').classList.add('hidden');
+
+        renderShieldsHUD();
+        renderPowerupsHUD();
+        updateHUD();
+        showSectorToast('VORTEX ONLINE', 'SECTOR 1: ' + tunnel.name);
+        sfx.powerup();
+      };
+
+      window.togglePause = function () {
+        if (gameState === 'PLAYING') {
+          gameState = 'PAUSED';
+          holdDir = 0;
+          touchBtns.left = false;
+          touchBtns.right = false;
+          document.getElementById('pauseModal').classList.remove('hidden');
+          document.getElementById('pauseBtn').textContent = '▶';
+        } else if (gameState === 'PAUSED') {
+          gameState = 'PLAYING';
+          lastFrameTime = performance.now();
+          document.getElementById('pauseModal').classList.add('hidden');
+          document.getElementById('pauseBtn').textContent = '❚❚';
+        }
+      };
+
+      window.toggleAutoFire = function () {
+        autoFire = !autoFire;
+        const btn = document.getElementById('autoFireBtn');
+        btn.textContent = autoFire ? 'AUTO-FIRE: ON' : 'AUTO-FIRE: OFF';
+        btn.style.color = autoFire ? '#00f3ff' : '#94a3b8';
+      };
+
+      window.toggleMute = function () {
+        isMuted = !isMuted;
+        const btn = document.getElementById('sfxBtn');
+        btn.textContent = isMuted ? 'SFX: OFF' : 'SFX: ON';
+        btn.style.color = isMuted ? '#ff1e56' : '#39ff14';
+        if (!isMuted) {
+          initAudio();
+          sfx.step();
+        }
+      };
+
+      function triggerGameOver() {
+        gameState = 'GAMEOVER';
+        const isRecord = score > 0 && score >= highScore;
+        safeSetHighScore(highScore);
+
+        document.getElementById('finalScoreText').textContent = score.toLocaleString();
+        document.getElementById('finalBestText').textContent = highScore.toLocaleString();
+        document.getElementById('finalComboText').textContent = maxCombo + 'X';
+        document.getElementById('finalSectorText').textContent = String(sector);
+        document.getElementById('menuHighScore').textContent = highScore.toLocaleString();
+        document.getElementById('newRecordBadge').classList.toggle('hidden', !isRecord);
+
+        document.getElementById('sectorToast').classList.add('hidden');
+        document.getElementById('gameOverModal').classList.remove('hidden');
+      }
+
+      // =========================================================================
+      // 12. MAIN 60 FPS ANIMATION LOOP & INPUT LISTENERS
+      // =========================================================================
+      function gameLoop(nowMs) {
+        if (!lastFrameTime) lastFrameTime = nowMs;
+        const dt = Math.min(0.05, Math.max(0, (nowMs - lastFrameTime) * 0.001));
+        lastFrameTime = nowMs;
+
+        update(dt);
+        render(nowMs);
+        window.requestAnimationFrame(gameLoop);
+      }
+
+      // Desktop Keyboard Controls
+      document.addEventListener('keydown', function (e) {
+        const code = e.code;
+
+        if (code === 'KeyM') {
+          window.toggleMute();
+          return;
+        }
+
+        if (code === 'KeyP' || code === 'Escape') {
+          if (gameState === 'PLAYING' || gameState === 'PAUSED') {
+            e.preventDefault();
+            window.togglePause();
+          }
+          return;
+        }
+
+        if (gameState === 'MENU' || gameState === 'GAMEOVER') {
+          if (code === 'Space' || code === 'Enter') {
+            e.preventDefault();
+            window.startGame();
+          }
+          return;
+        }
+
+        if (gameState === 'PAUSED') {
+          if (code === 'Space' || code === 'Enter') {
+            e.preventDefault();
+            window.togglePause();
+          }
+          return;
+        }
+
+        if (code === 'ArrowLeft' || code === 'KeyA') {
+          e.preventDefault();
+          keys[code] = true;
+          if (!e.repeat) stepPlayerLane(-1);
+        } else if (code === 'ArrowRight' || code === 'KeyD') {
+          e.preventDefault();
+          keys[code] = true;
+          if (!e.repeat) stepPlayerLane(1);
+        } else if (code === 'Space' || code === 'KeyW' || code === 'ArrowUp') {
+          e.preventDefault();
+          keys[code] = true;
+          triggerPlayerVolley();
+        } else if (!e.repeat && (code === 'KeyE' || code === 'ShiftLeft' || code === 'ShiftRight' || code === 'KeyZ')) {
+          e.preventDefault();
+          window.activateSuperzapper();
+        }
+      });
+
+      document.addEventListener('keyup', function (e) {
+        keys[e.code] = false;
+      });
+
+      // Left-Click Fire & Horizontal Touch Swipe/Drag on Canvas
+      canvas.addEventListener('pointerdown', function (e) {
+        if (gameState !== 'PLAYING') return;
+        if (e.pointerType === 'mouse' && e.button === 0) {
+          keys.MouseDown = true;
+          triggerPlayerVolley();
+        } else {
+          swipeState.active = true;
+          swipeState.pointerId = e.pointerId;
+          swipeState.startX = e.clientX;
+        }
+      });
+
+      canvas.addEventListener('pointermove', function (e) {
+        if (!swipeState.active || e.pointerId !== swipeState.pointerId || gameState !== 'PLAYING') return;
+        const dx = e.clientX - swipeState.startX;
+        const stepThreshold = 26;
+        if (Math.abs(dx) >= stepThreshold) {
+          const steps = Math.trunc(dx / stepThreshold);
+          swipeState.startX += steps * stepThreshold;
+          const dir = steps > 0 ? 1 : -1;
+          for (let s = 0; s < Math.abs(steps); s++) {
+            stepPlayerLane(dir);
+          }
+        }
+      });
+
+      const releaseCanvasPointer = function (e) {
+        if (e.pointerType === 'mouse') {
+          keys.MouseDown = false;
+        }
+        if (swipeState.pointerId !== null && e.pointerId === swipeState.pointerId) {
+          swipeState.active = false;
+          swipeState.pointerId = null;
+        }
+      };
+      canvas.addEventListener('pointerup', releaseCanvasPointer);
+      canvas.addEventListener('pointercancel', releaseCanvasPointer);
+
+      // Tactile Mobile Bottom Touch Buttons
+      function bindTouchStepButton(btnId, dir, keyName) {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        btn.addEventListener('pointerdown', function (e) {
+          e.preventDefault();
+          btn.classList.add('active-press');
+          touchBtns[keyName] = true;
+          stepPlayerLane(dir);
+        });
+        const release = function (e) {
+          if (e) e.preventDefault();
+          btn.classList.remove('active-press');
+          touchBtns[keyName] = false;
+        };
+        btn.addEventListener('pointerup', release);
+        btn.addEventListener('pointercancel', release);
+        btn.addEventListener('pointerleave', release);
+      }
+
+      bindTouchStepButton('touchLeftBtn', -1, 'left');
+      bindTouchStepButton('touchRightBtn', 1, 'right');
+
+      // Redundant addEventListener bindings on Start & Play Again buttons
+      const startBtn = document.getElementById('startBtn');
+      const playAgainBtn = document.getElementById('playAgainBtn');
+      if (startBtn) {
+        startBtn.addEventListener('click', function () {
+          window.startGame();
+        });
+      }
+      if (playAgainBtn) {
+        playAgainBtn.addEventListener('click', function () {
+          window.startGame();
+        });
+      }
+
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden && gameState === 'PLAYING') {
+          window.togglePause();
+        }
+      });
+
+      // Initial Boot
+      document.getElementById('menuHighScore').textContent = highScore.toLocaleString();
+      document.getElementById('highScoreText').textContent = highScore.toLocaleString();
+      buildStarfield();
+      resizeCanvas();
+      renderShieldsHUD();
+      window.requestAnimationFrame(gameLoop);
+    })();
+  </script>
+</body>
+</html>
